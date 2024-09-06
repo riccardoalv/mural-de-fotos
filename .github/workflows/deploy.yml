@@ -7,6 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    steps:
     - name: remove repo
       run: rm -rf /var/www/mural-de-fotos
 
