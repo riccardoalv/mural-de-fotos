@@ -1,0 +1,17 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    - name: remove repo
+      run: rm -rf /var/www/mural-de-fotos
+
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Copy to destiny
+      run: cp -r . /var/www/mural-de-fotos
