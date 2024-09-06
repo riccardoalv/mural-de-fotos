@@ -1,3 +1,24 @@
+document.addEventListener('DOMContentLoaded', function() {
+    const photoGrid = document.querySelector('.photo-grid');
+    const photos = Array.from(photoGrid.children);
+
+    // Função de embaralhamento de array (algoritmo de Fisher-Yates)
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // Embaralha as fotos
+    const shuffledPhotos = shuffle(photos);
+
+    // Remove todas as fotos do grid e as adiciona novamente na nova ordem
+    photoGrid.innerHTML = ''; // Limpa o grid
+    shuffledPhotos.forEach(photo => photoGrid.appendChild(photo)); // Adiciona as fotos embaralhadas
+});
+
 // Seleciona o modal e a imagem
 var modal = document.getElementById("photoModal");
 var modalImage = document.getElementById("modalImage");
