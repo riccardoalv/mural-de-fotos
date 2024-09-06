@@ -25,7 +25,8 @@ main {
 }
 
 header {
-    margin-bottom: 20px;
+    margin-bottom: .8rem;
+    padding: 1rem;
 }
 
 h1 {
@@ -140,7 +141,8 @@ h1 {
 }
 
 footer {
-    margin-top: 20px;
+    /* margin-top: 20px; */
+    padding: 1.5rem;
     font-size: 1.5rem;
     color: #ff3399; /* Mantém o rosa vibrante */
     text-shadow: 1px 1px #ffffff;
