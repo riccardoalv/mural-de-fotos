@@ -24,7 +24,7 @@ var modal = document.getElementById("photoModal");
 var modalImage = document.getElementById("modalImage");
 
 // Seleciona todas as imagens na grid
-var images = document.querySelectorAll(".photo img", ".photo video");
+var images = document.querySelectorAll(".photo img");
 
 // Seleciona o botão de fechar o modal
 var closeBtn = document.getElementsByClassName("close")[0];
