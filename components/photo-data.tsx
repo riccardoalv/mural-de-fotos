@@ -1,0 +1,111 @@
+export const photos = [
+  {
+    id: 1,
+    src: "/images/cj-sleeping.jpeg",
+    alt: "CJ Sleeping",
+    description: "A peaceful moment of CJ taking a nap.",
+    author: "Unknown",
+    likes: 42,
+    comments: [
+      { id: 1, author: "user1", text: "So relatable!" },
+      { id: 2, author: "user2", text: "Best way to spend a weekend!" },
+    ],
+  },
+  {
+    id: 2,
+    src: "/images/dois-oni-chans.jpeg",
+    alt: "Dois Oni-chans",
+    description: "Two Oni-chans posing for a photo.",
+    author: "Unknown",
+    likes: 38,
+    comments: [
+      { id: 1, author: "user3", text: "This is amazing!" },
+      { id: 2, author: "user4", text: "Epic shot!" },
+    ],
+  },
+  {
+    id: 3,
+    src: "/images/feliph2.jpeg",
+    alt: "Feliph 2",
+    description: "A moment captured of Feliph.",
+    author: "Unknown",
+    likes: 27,
+    comments: [
+      { id: 1, author: "user5", text: "Looking good!" },
+      { id: 2, author: "user6", text: "Nice pic!" },
+    ],
+  },
+  {
+    id: 4,
+    src: "/images/mauricio.jpeg",
+    alt: "Mauricio",
+    description: "Portrait of Mauricio.",
+    author: "Unknown",
+    likes: 35,
+    comments: [
+      { id: 1, author: "user7", text: "Great expression!" },
+      { id: 2, author: "user8", text: "Very artistic!" },
+    ],
+  },
+  {
+    id: 5,
+    src: "/images/tim-maia-em-pvh.jpeg",
+    alt: "Tim Maia in PVH",
+    description: "Tim Maia spotted in Porto Velho.",
+    author: "Unknown",
+    likes: 56,
+    comments: [
+      { id: 1, author: "user9", text: "A legend!" },
+      { id: 2, author: "user10", text: "Wish I was there!" },
+    ],
+  },
+  {
+    id: 6,
+    src: "/images/walace-dorm8ihng.jpeg",
+    alt: "Walace Sleeping",
+    description: "Caught Walace taking a nap.",
+    author: "Unknown",
+    likes: 31,
+    comments: [
+      { id: 1, author: "user11", text: "Sleep goals!" },
+      { id: 2, author: "user12", text: "So comfy!" },
+    ],
+  },
+  {
+    id: 7,
+    src: "/images/feliph.jpeg",
+    alt: "Feliph",
+    description: "Another snapshot of Feliph.",
+    author: "Unknown",
+    likes: 45,
+    comments: [
+      { id: 1, author: "user13", text: "Stylish!" },
+      { id: 2, author: "user14", text: "Love the vibe!" },
+    ],
+  },
+  {
+    id: 8,
+    src: "/images/littlethaun.jpeg",
+    alt: "Little Thaun",
+    description: "A young Thaun captured in a moment.",
+    author: "Unknown",
+    likes: 39,
+    comments: [
+      { id: 1, author: "user15", text: "So nostalgic!" },
+      { id: 2, author: "user16", text: "Looks amazing!" },
+    ],
+  },
+  {
+    id: 9,
+    src: "/images/vini-depois-de-mamar.jpeg",
+    alt: "Vini after drinking milk",
+    description: "Vini feeling satisfied after a good drink.",
+    author: "Unknown",
+    likes: 33,
+    comments: [
+      { id: 1, author: "user17", text: "Pure happiness!" },
+      { id: 2, author: "user18", text: "This is gold!" },
+    ],
+  },
+]
+
