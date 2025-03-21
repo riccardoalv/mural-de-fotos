@@ -1,130 +1,43 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useState, type ReactNode, useEffect } from "react"
+import { createContext, useContext, useState, useEffect } from "react";
 
-type User = {
-  id: string
-  name: string
-  email: string
-  avatar?: string
-}
+// Cria o contexto de autenticação
+const AuthContext = createContext(null);
 
-type AuthContextType = {
-  user: User | null
-  isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<boolean>
-  register: (name: string, email: string, password: string) => Promise<boolean>
-  logout: () => void
-  updateProfile: (data: Partial<User>) => void
-}
+// Provider que envolverá a aplicação para disponibilizar os dados de autenticação
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-// Função para persistir o usuário no localStorage
-const saveUserToStorage = (user: User | null) => {
-  if (typeof window !== "undefined") {
-    if (user) {
-      localStorage.setItem("user", JSON.stringify(user))
-    } else {
-      localStorage.removeItem("user")
-    }
-  }
-}
-
-// Função para recuperar o usuário do localStorage
-const getUserFromStorage = (): User | null => {
-  if (typeof window !== "undefined") {
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      try {
-        return JSON.parse(storedUser)
-      } catch (e) {
-        return null
-      }
-    }
-  }
-  return null
-}
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-
-  // Carregar usuário do localStorage na inicialização
+  // Ao montar, verifica se há informações do usuário salvas no localStorage
   useEffect(() => {
-    const storedUser = getUserFromStorage()
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(storedUser)
+      setUser(JSON.parse(storedUser));
     }
-  }, [])
+  }, []);
 
-  // Função de login
-  const login = async (email: string, password: string) => {
-    // Simulação de autenticação - em um app real, isso seria uma chamada API
-    if (email && password.length >= 6) {
-      const newUser = {
-        id: Math.random().toString(36).substring(2, 9),
-        name: email.split("@")[0],
-        email: email,
-      }
-      setUser(newUser)
-      saveUserToStorage(newUser)
-      return true
-    }
-    return false
-  }
+  // Função para atualizar o estado com os dados do usuário após o login
+  const login = (userData) => {
+    setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData));
+  };
 
-  // Função de registro
-  const register = async (name: string, email: string, password: string) => {
-    // Simulação de registro - em um app real, isso seria uma chamada API
-    if (name && email && password.length >= 6) {
-      const newUser = {
-        id: Math.random().toString(36).substring(2, 9),
-        name,
-        email,
-      }
-      setUser(newUser)
-      saveUserToStorage(newUser)
-      return true
-    }
-    return false
-  }
-
-  // Função de logout
+  // Função para realizar logout e limpar os dados armazenados
   const logout = () => {
-    setUser(null)
-    saveUserToStorage(null)
-  }
-
-  // Função para atualizar o perfil
-  const updateProfile = (data: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...data }
-      setUser(updatedUser)
-      saveUserToStorage(updatedUser)
-    }
-  }
+    setUser(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        login,
-        register,
-        logout,
-        updateProfile,
-      }}
-    >
+    <AuthContext.Provider value={{ user, login, logout }}>
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
+// Hook para facilitar o acesso ao contexto
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
+  return useContext(AuthContext);
 }
-

@@ -1,205 +1,229 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Image from "next/image"
-import { X, Heart, MessageCircle, Send } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Input } from "@/components/ui/input"
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { X, Heart, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import api from "@/lib/api";
 
-type Comment = {
-  id: number
-  author: string
-  text: string
-}
+export type Comment = {
+  id: string;
+  user: {
+    id: string;
+    avatarUrl: string | null;
+    name: string;
+  };
+  content: string;
+  createdAt?: string;
+};
 
-type Photo = {
-  id: number
-  src: string
-  alt: string
-  description: string
-  author: string
-  likes: number
-  comments: Comment[]
-}
+export type Photo = {
+  id: string;
+  caption: string;
+  imageUrl: string;
+  user?: {
+    id: string;
+    avatarUrl: string | null;
+    name: string;
+  };
+  _count: {
+    likes: number;
+    comments: number;
+  };
+  comments?: Comment[];
+};
 
 interface PhotoModalProps {
-  photo: Photo
-  onClose: () => void
-  onAddComment: (photoId: number, comment: string) => void
+  photo: Photo;
+  onClose: () => void;
 }
 
-export default function PhotoModal({ photo, onClose, onAddComment }: PhotoModalProps) {
-  const [newComment, setNewComment] = useState("")
-  const [liked, setLiked] = useState(false)
-  const [likesCount, setLikesCount] = useState(photo.likes)
-  const [comments, setComments] = useState<Comment[]>(photo.comments)
-  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 600 })
+export default function PhotoModal({ photo, onClose }: PhotoModalProps) {
+  const [newComment, setNewComment] = useState("");
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(photo._count.likes);
+  const [comments, setComments] = useState<Comment[]>(photo.comments || []);
+  const [error, setError] = useState("");
+  const token = localStorage.getItem("token");
 
+  // URL para baixar a imagem usando o id do post
+  const imageUrl = `${api.defaults.baseURL}/posts/${photo.id}/download-image`;
+
+  // Quando o modal for aberto, faz uma requisição para buscar os dados atualizados do post
   useEffect(() => {
-    // Carregar dimensões da imagem para calcular proporções
-    if (typeof window !== "undefined") {
-      const img = new window.Image()
-
-      img.onload = () => {
-        setImageDimensions({
-          width: img.width,
-          height: img.height,
-        })
-      }
-
-      img.onerror = () => {
-        // Em caso de erro, manter as dimensões padrão
-        console.error("Erro ao carregar a imagem:", photo.src)
-      }
-
-      img.src = photo.src
-    }
-
-    // Desabilitar scroll do body quando o modal estiver aberto
-    if (typeof document !== "undefined") {
-      document.body.style.overflow = "hidden"
-      return () => {
-        document.body.style.overflow = "auto"
+    async function fetchPostData() {
+      try {
+        const response = await api.get(`/posts/${photo.id}`);
+        const postData = response.data;
+        setComments(postData.comments || []);
+        setLikesCount(postData._count.likes);
+      } catch (err) {
+        console.error("Erro ao buscar dados do post", err);
+        setError("Erro ao buscar dados do post");
       }
     }
-  }, [photo.src])
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      const newCommentObj = {
-        id: comments.length + 1,
-        author: "current_user",
-        text: newComment,
-      }
+    fetchPostData();
+  }, [photo.id]);
 
-      setComments([...comments, newCommentObj])
-      onAddComment(photo.id, newComment)
-      setNewComment("")
+  // Função para adicionar comentário via API
+  const handleAddComment = async () => {
+    const text = newComment.trim();
+    if (!text) return;
+    try {
+      const response = await api.post(
+        `/posts/${photo.id}/comments`,
+        {
+          content: text,
+        },
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      // Atualiza os comentários com o novo comentário retornado pela API
+      setComments((prev) => [...prev, response.data]);
+    } catch (err) {
+      console.error("Erro ao adicionar comentário", err);
+      setError("Erro ao adicionar comentário");
     }
-  }
+    setNewComment("");
+  };
 
-  const handleLike = () => {
-    setLiked(!liked)
-    setLikesCount(liked ? likesCount - 1 : likesCount + 1)
-  }
-
-  // Calcular o estilo do container da imagem baseado nas dimensões
-  const getImageContainerStyle = () => {
-    const aspectRatio = imageDimensions.width / imageDimensions.height
-    const isLandscape = aspectRatio > 1
-
-    if (isLandscape) {
-      // Para imagens horizontais, limitar a largura
-      return {
-        width: "100%",
-        height: "auto",
-        maxHeight: "80vh",
+  // Função para alternar o like do post via API
+  const handleLike = async () => {
+    try {
+      if (!liked) {
+        await api.post(
+          `/posts/${photo.id}/like`,
+          {},
+          {
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        setLiked(true);
+        setLikesCount((prev) => prev + 1);
+      } else {
+        await api.delete(
+          `/posts/${photo.id}/likes`,
+          {
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        setLiked(false);
+        setLikesCount((prev) => prev - 1);
       }
-    } else {
-      // Para imagens verticais, limitar a altura
-      return {
-        height: "80vh",
-        width: "auto",
-        maxWidth: "100%",
-      }
+    } catch (err) {
+      console.error("Erro ao atualizar like", err);
+      setError("Erro ao atualizar like");
     }
-  }
+  };
+
+  // Impede o scroll do background enquanto o modal estiver aberto
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, []);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div
-        className="bg-background rounded-lg overflow-hidden w-full max-h-screen flex flex-col lg:flex-row"
-        style={{ maxWidth: "90vw" }}
-      >
-        {/* Close button */}
-        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 z-10">
+    <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4 overflow-auto">
+      <div className="bg-background rounded-lg overflow-hidden w-full max-w-5xl flex flex-col lg:flex-row">
+        <button onClick={onClose} className="absolute top-4 right-4 text-white">
           <X className="h-6 w-6" />
         </button>
 
-        {/* Image */}
-        <div className="relative flex items-center justify-center bg-black lg:w-2/3 h-auto">
-          <div className="relative" style={getImageContainerStyle()}>
-            <Image
-              src={photo.src || "/placeholder.svg"}
-              alt={photo.alt}
-              width={imageDimensions.width}
-              height={imageDimensions.height}
-              className="object-contain max-h-[80vh]"
-              style={{ width: "100%", height: "auto" }}
-              unoptimized
-            />
-          </div>
+        <div className="lg:w-2/3 flex items-center justify-center bg-black">
+          <Image
+            src={imageUrl}
+            alt={photo.caption || "Foto"}
+            width={800}
+            height={600}
+            className="object-contain max-h-screen"
+            unoptimized
+          />
         </div>
 
-        {/* Details and comments */}
-        <div className="lg:w-1/3 flex flex-col h-full max-h-[50vh] lg:max-h-[80vh]">
-          {/* Author info */}
+        <div className="lg:w-1/3 flex flex-col max-h-screen">
+          {/* Cabeçalho com informações do usuário */}
           <div className="p-4 border-b flex items-center gap-3">
             <Avatar>
-              <AvatarImage src="/placeholder.svg?height=40&width=40" />
-              <AvatarFallback>{photo.author.substring(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarFallback>
+                {photo.user?.name
+                  ? photo.user.name.slice(0, 2).toUpperCase()
+                  : "NN"}
+              </AvatarFallback>
             </Avatar>
-            <div className="font-medium">{photo.author}</div>
+            <span className="font-medium">
+              {photo.user?.name || "Desconhecido"}
+            </span>
           </div>
 
-          {/* Description */}
+          {/* Exibe o caption da foto */}
           <div className="p-4 border-b">
-            <h3 className="font-medium mb-2">{photo.alt}</h3>
-            <p className="text-sm text-muted-foreground">{photo.description}</p>
+            <p className="text-sm text-gray-700">{photo.caption}</p>
           </div>
 
-          {/* Comments */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {comments.map((comment) => (
-              <div key={comment.id} className="mb-3 flex gap-2">
+          {/* Área dos comentários */}
+          <div className="flex-1 overflow-auto p-4 space-y-4">
+            {error && <div className="text-red-500">{error}</div>}
+            {comments.map((c) => (
+              <div key={c.id} className="flex gap-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>{comment.author.substring(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback>
+                    {c.user?.name
+                      ? c.user.name.slice(0, 2).toUpperCase()
+                      : "NN"}
+                  </AvatarFallback>
                 </Avatar>
-                <div>
-                  <span className="font-medium text-sm">{comment.author}</span>{" "}
-                  <span className="text-sm">{comment.text}</span>
-                </div>
+                <p>
+                  <strong>{c.user?.name || "Desconhecido"}</strong> {c.content}
+                </p>
               </div>
             ))}
           </div>
 
-          {/* Actions */}
+          {/* Área de interação (likes e adição de comentários) */}
           <div className="p-4 border-t">
             <div className="flex items-center gap-4 mb-3">
-              <Button variant="ghost" size="icon" onClick={handleLike} className={liked ? "text-red-500" : ""}>
-                <Heart className={`h-6 w-6 ${liked ? "fill-red-500" : ""}`} />
-                <span className="sr-only">Like</span>
+              <Button variant="ghost" size="icon" onClick={handleLike}>
+                <Heart
+                  className={`h-6 w-6 ${liked ? "fill-red-500 text-red-500" : ""
+                    }`}
+                />
               </Button>
-              <Button variant="ghost" size="icon">
-                <MessageCircle className="h-6 w-6" />
-                <span className="sr-only">Comment</span>
-              </Button>
-              <div className="ml-auto text-sm font-medium">{likesCount} likes</div>
+              <span className="ml-auto font-medium">{likesCount} likes</span>
             </div>
 
-            {/* Add comment */}
             <div className="flex gap-2">
               <Input
-                placeholder="Add a comment..."
+                placeholder="Adicione um comentário…"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleAddComment()
-                  }
-                }}
+                onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                 className="flex-1"
               />
-              <Button size="icon" onClick={handleAddComment} disabled={!newComment.trim()}>
+              <Button size="icon" onClick={handleAddComment}>
                 <Send className="h-4 w-4" />
-                <span className="sr-only">Send</span>
               </Button>
             </div>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
-
