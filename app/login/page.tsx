@@ -25,19 +25,21 @@ export default function LoginPage() {
   const redirectPath = searchParams.get("redirect") || "/";
 
   const { login } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Se já houver um token armazenado, redireciona o usuário
   useEffect(() => {
-    if (localStorage.getItem("token")) {
+    const token =
+      typeof window !== "undefined" && localStorage.getItem("token");
+    if (token) {
       router.push(redirectPath);
     }
   }, [router, redirectPath]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
@@ -45,21 +47,18 @@ export default function LoginPage() {
     try {
       const { data } = await api.post("/auths/login", {
         identifier: email,
-        password: password,
+        password,
       });
 
-      // Armazena o token no localStorage
       localStorage.setItem("token", data.accessToken);
+      localStorage.setItem("email", data.email);
 
-      if (login) {
-        login({ email: data.email, id: data.sub });
-      }
-
+      login?.({ email: data.email, id: data.sub });
       router.push(redirectPath);
-    } catch (err) {
-      setError(
-        "Email ou senha inválidos. A senha deve ter pelo menos 6 caracteres.",
-      );
+    } catch (err: any) {
+      const apiError =
+        err?.response?.data?.message || "Email ou senha incorretos.";
+      setError(apiError);
     } finally {
       setIsSubmitting(false);
     }
@@ -77,7 +76,7 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               {error && (
                 <div className="p-3 text-sm text-white bg-red-500 rounded-md">
                   {error}
@@ -93,6 +92,8 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
                   required
+                  autoComplete="email"
+                  aria-invalid={!!error}
                 />
               </div>
 
@@ -113,6 +114,8 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="current-password"
+                  aria-invalid={!!error}
                 />
               </div>
 

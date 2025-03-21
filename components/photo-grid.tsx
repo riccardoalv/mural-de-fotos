@@ -5,8 +5,6 @@ import PhotoModal from "@/components/photo-modal";
 import api from "@/lib/api";
 import { handleAddComment } from "@/lib/handleAddComment";
 import { handleLike } from "@/lib/handleLike";
-import { PhotoItem } from "./photo-item";
-import { SkeletonLoader } from "./skeleton-loader";
 import { useAuth } from "@/context/auth-context";
 
 export default function PhotoGrid() {
@@ -21,7 +19,6 @@ export default function PhotoGrid() {
   const observer = useRef<IntersectionObserver>();
   const [tokenLoaded, setTokenLoaded] = useState(false);
 
-  // Reset feed ao mudar auth
   useEffect(() => {
     setPhotos([]);
     setPage(1);
@@ -35,46 +32,30 @@ export default function PhotoGrid() {
 
   useEffect(() => {
     if (!tokenLoaded) return;
+    setLoading(true);
+    const url = `posts?limit=10&page=${page}`;
+    const config =
+      isAuthenticated && token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : undefined;
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const url = `posts?limit=10&page=${page}`;
-        const config =
-          isAuthenticated && token
-            ? {
-              headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-            }
-            : undefined;
-
-        const { data } = await api.get(url, config);
+    api
+      .get(url, config)
+      .then(({ data }) => {
         setPhotos((prev) => [...prev, ...data.data]);
         setHasMore(data.data.length === 10);
-      } catch (error) {
-        console.error("Erro ao buscar fotos:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [page, isAuthenticated, token, tokenLoaded]);
 
-  const lastPhotoElementRef = useCallback(
+  const lastRef = useCallback(
     (node) => {
       if (loading) return;
-      if (observer.current) observer.current.disconnect();
-
+      observer.current?.disconnect();
       observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMore) {
-          setPage((prev) => prev + 1);
-        }
+        if (entries[0].isIntersecting && hasMore) setPage((p) => p + 1);
       });
-
       if (node) observer.current.observe(node);
     },
     [loading, hasMore],
@@ -82,14 +63,20 @@ export default function PhotoGrid() {
 
   return (
     <>
-      <div className="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4">
+      <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-2">
         {photos.map((photo, i) => (
-          <PhotoItem
-            key={`${photo.id}-${i}`}
-            photo={photo}
-            onClick={setSelectedPhoto}
-            innerRef={i === photos.length - 1 ? lastPhotoElementRef : null}
-          />
+          <div
+            key={photo.id}
+            ref={i === photos.length - 1 ? lastRef : null}
+            className="mb-2 break-inside-avoid cursor-pointer"
+            onClick={() => setSelectedPhoto(photo)}
+          >
+            <img
+              src={`${api.defaults.baseURL}/posts/${photo.id}/download-image`}
+              alt={photo.caption ?? "Foto"}
+              className="w-full h-auto object-contain"
+            />
+          </div>
         ))}
       </div>
 
@@ -98,7 +85,6 @@ export default function PhotoGrid() {
           <div className="loader">Carregando...</div>
         </div>
       )}
-      {!loading && photos.length === 0 && <SkeletonLoader />}
 
       {selectedPhoto && (
         <PhotoModal

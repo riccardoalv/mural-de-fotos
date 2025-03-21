@@ -124,6 +124,7 @@ export default function UploadPage() {
                 className="hidden"
               />
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => document.getElementById("photo")?.click()}
               >
