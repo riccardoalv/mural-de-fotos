@@ -65,9 +65,9 @@ export default function LoginPage() {
       // Fazer a chamada API de login diretamente
       const response = await api.post("/auths/login", loginData, {});
 
-      if (response.data.access_token) {
+      if (response.data.accessToken) {
         // Passar o token para o contexto
-        login(response.data.access_token);
+        login(response.data.accessToken);
         router.push(redirectPath);
       } else {
         setError("Resposta inválida do servidor: Token não encontrado");
