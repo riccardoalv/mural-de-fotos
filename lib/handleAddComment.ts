@@ -1,24 +1,30 @@
+"use client";
+
 import api from "@/lib/api";
 
-export const handleAddComment = async (photoId, comment) => {
-  const token = localStorage.getItem("token");
+export const handleAddComment = async (
+  postId: number,
+  comment: string,
+  isAuthenticated: boolean,
+  token: string | null,
+) => {
+  if (!isAuthenticated || !token) {
+    return null;
+  }
 
   try {
     const response = await api.post(
-      `posts/${photoId}/comments`,
-      {
-        content: comment,
-      },
+      `posts/${postId}/comments`,
+      { content: comment },
       {
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       },
     );
-    console.log("Comentário adicionado:", response.data);
+    return response.data;
   } catch (error) {
     console.error("Erro ao adicionar comentário:", error);
+    return null;
   }
 };

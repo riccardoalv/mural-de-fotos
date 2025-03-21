@@ -1,22 +1,29 @@
+"use client";
+
 import api from "@/lib/api";
 
-export const handleLike = async (photoId) => {
-  const token = localStorage.getItem("token");
+export const handleLike = async (
+  postId: number,
+  isAuthenticated: boolean,
+  token: string | null,
+) => {
+  if (!isAuthenticated || !token) {
+    return null;
+  }
 
   try {
     const response = await api.post(
-      `posts/${photoId}/like`,
+      `posts/${postId}/like`,
       {},
       {
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       },
     );
-    console.log("Like realizado:", response.data);
+    return response.data;
   } catch (error) {
-    console.error("Erro ao dar like:", error);
+    console.error("Erro ao curtir post:", error);
+    return null;
   }
 };

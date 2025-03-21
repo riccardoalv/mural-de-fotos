@@ -1,44 +1,129 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
+import { jwtDecode } from "jwt-decode";
 
-// Cria o contexto de autenticação
-const AuthContext = createContext(null);
+interface User {
+  id: string;
+  email: string;
+}
 
-// Provider que envolverá a aplicação para disponibilizar os dados de autenticação
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+interface JwtPayload {
+  email: string;
+  sub: string; // user ID
+  iat: number;
+  exp: number;
+}
 
-  // Ao montar, verifica se há informações do usuário salvas no localStorage
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+interface AuthContextType {
+  user: User | null;
+  isAuthenticated: boolean;
+  login: (token: string) => void;
+  logout: () => void;
+  loading: boolean;
+}
+
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isAuthenticated: false,
+  login: () => { },
+  logout: () => { },
+  loading: true,
+});
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Função para extrair informações do token
+  const getUserFromToken = (token: string): User | null => {
+    try {
+      const decoded = jwtDecode<JwtPayload>(token);
+      return {
+        id: decoded.sub,
+        email: decoded.email,
+      };
+    } catch (error) {
+      console.error("Erro ao decodificar token:", error);
+      return null;
     }
-  }, []);
-
-  // Função para atualizar o estado com os dados do usuário após o login
-  const login = (userData) => {
-    setUser(userData);
-    localStorage.setItem("user", JSON.stringify(userData));
   };
 
-  // Função para realizar logout e limpar os dados armazenados
+  // Verificar token ao inicializar
+  useEffect(() => {
+    const checkAuth = () => {
+      try {
+        // Verificar se estamos no cliente
+        if (typeof window === "undefined") {
+          setLoading(false);
+          return;
+        }
+
+        const token = localStorage.getItem("token");
+
+        if (!token) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        // Extrair informações do usuário do token
+        const userData = getUserFromToken(token);
+
+        if (userData) {
+          setUser(userData);
+        } else {
+          // Token inválido
+          localStorage.removeItem("token");
+          setUser(null);
+        }
+      } catch (e) {
+        console.error("Erro ao verificar autenticação:", e);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Login apenas armazena o token e extrai informações
+  const login = (token: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("token", token);
+      const userData = getUserFromToken(token);
+      setUser(userData);
+    }
+  };
+
+  // Logout remove o token
   const logout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+    }
     setUser(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        login,
+        logout,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-  return ctx;
-}
+export const useAuth = () => useContext(AuthContext);

@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import PhotoModal from "@/components/photo-modal";
 import api from "@/lib/api";
-import { handleAddComment } from "@/lib/handleAddComment";
-import { handleLike } from "@/lib/handleLike";
+import { PhotoItem } from "@/components/photo-item";
+import { SkeletonLoader } from "@/components/skeleton-loader";
 import { useAuth } from "@/context/auth-context";
+import { useIsClient } from "@/hooks/use-is-client";
 
 export default function PhotoGrid() {
+  const isClient = useIsClient();
   const { user } = useAuth();
   const isAuthenticated = Boolean(user);
   const [token, setToken] = useState<string | null>(null);
@@ -18,6 +21,7 @@ export default function PhotoGrid() {
   const [loading, setLoading] = useState(false);
   const observer = useRef<IntersectionObserver>();
   const [tokenLoaded, setTokenLoaded] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     setPhotos([]);
@@ -25,58 +29,71 @@ export default function PhotoGrid() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isClient) return;
+
     const saved = localStorage.getItem("token");
     setToken(saved);
     setTokenLoaded(true);
-  }, []);
+  }, [isClient]);
 
   useEffect(() => {
     if (!tokenLoaded) return;
-    setLoading(true);
-    const url = `posts?limit=10&page=${page}`;
-    const config =
-      isAuthenticated && token
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : undefined;
 
-    api
-      .get(url, config)
-      .then(({ data }) => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const url = `posts?limit=10&page=${page}`;
+        const config =
+          isAuthenticated && token
+            ? {
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }
+            : undefined;
+
+        const { data } = await api.get(url, config);
         setPhotos((prev) => [...prev, ...data.data]);
         setHasMore(data.data.length === 10);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      } catch (error) {
+        console.error("Erro ao buscar fotos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
   }, [page, isAuthenticated, token, tokenLoaded]);
 
-  const lastRef = useCallback(
-    (node) => {
-      if (loading) return;
-      observer.current?.disconnect();
+  const lastPhotoElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!isClient || loading) return;
+      if (observer.current) observer.current.disconnect();
+
       observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMore) setPage((p) => p + 1);
+        if (entries[0].isIntersecting && hasMore) {
+          setPage((prev) => prev + 1);
+        }
       });
+
       if (node) observer.current.observe(node);
     },
-    [loading, hasMore],
+    [loading, hasMore, isClient],
   );
 
   return (
     <>
-      <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-2">
+      <div className="masonry-grid px-2">
         {photos.map((photo, i) => (
-          <div
-            key={photo.id}
-            ref={i === photos.length - 1 ? lastRef : null}
-            className="mb-2 break-inside-avoid cursor-pointer"
-            onClick={() => setSelectedPhoto(photo)}
-          >
-            <img
-              src={`${api.defaults.baseURL}/posts/${photo.id}/download-image`}
-              alt={photo.caption ?? "Foto"}
-              className="w-full h-auto object-contain"
-            />
-          </div>
+          <PhotoItem
+            key={`${photo.id}-${i}`}
+            photo={photo}
+            onClick={setSelectedPhoto}
+            innerRef={i === photos.length - 1 ? lastPhotoElementRef : null}
+            className="masonry-item mb-4"
+          />
         ))}
       </div>
 
@@ -85,15 +102,39 @@ export default function PhotoGrid() {
           <div className="loader">Carregando...</div>
         </div>
       )}
+      {!loading && photos.length === 0 && <SkeletonLoader />}
 
       {selectedPhoto && (
         <PhotoModal
           photo={selectedPhoto}
           onClose={() => setSelectedPhoto(null)}
-          onAddComment={handleAddComment}
-          onLike={handleLike}
         />
       )}
+
+      <style jsx>{`
+        .masonry-grid {
+          display: grid;
+          grid-template-columns: repeat(1, 1fr);
+          grid-gap: 20px;
+          grid-auto-rows: 10px;
+        }
+
+        @media (min-width: 640px) {
+          .masonry-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (min-width: 1024px) {
+          .masonry-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        .masonry-item {
+          grid-row-end: span var(--row-span, 30);
+        }
+      `}</style>
     </>
   );
 }

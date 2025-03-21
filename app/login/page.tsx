@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,28 +18,29 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LogIn } from "lucide-react";
-import api from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useIsClient } from "@/hooks/use-is-client";
+import api from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/";
+  const isClient = useIsClient();
 
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Redirecionar se já estiver autenticado
   useEffect(() => {
-    const token =
-      typeof window !== "undefined" && localStorage.getItem("token");
-    if (token) {
+    if (isClient && user && !loading) {
       router.push(redirectPath);
     }
-  }, [router, redirectPath]);
+  }, [user, router, redirectPath, isClient, loading]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -45,24 +48,43 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
+      // Fazer a chamada API de login diretamente
       const { data } = await api.post("/auths/login", {
         identifier: email,
         password,
       });
 
-      localStorage.setItem("token", data.accessToken);
-      localStorage.setItem("email", data.email);
-
-      login?.({ email: data.email, id: data.sub });
-      router.push(redirectPath);
+      if (data.accessToken) {
+        // Passar o token para o contexto
+        login(data.accessToken);
+        router.push(redirectPath);
+      } else {
+        setError("Credenciais inválidas");
+      }
     } catch (err: any) {
       const apiError =
         err?.response?.data?.message || "Email ou senha incorretos.";
       setError(apiError);
+      console.error("Erro de login:", err);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Mostrar um indicador de carregamento enquanto verificamos a autenticação
+  if (loading && isClient) {
+    return (
+      <>
+        <Header />
+        <main className="container mx-auto px-4 py-8 flex justify-center items-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Carregando...</p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
