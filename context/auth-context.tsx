@@ -37,7 +37,8 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Hook para facilitar o acesso ao contexto
 export function useAuth() {
-  return useContext(AuthContext);
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
+  return ctx;
 }
