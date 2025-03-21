@@ -42,6 +42,7 @@ export default function LoginPage() {
     }
   }, [user, router, redirectPath, isClient, loading]);
 
+  console.log("Tentando login com:", { identifier: email, password: "***" });
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
@@ -62,10 +63,11 @@ export default function LoginPage() {
         setError("Credenciais inválidas");
       }
     } catch (err: any) {
+      console.error("Erro de login:", err);
+      console.error("Resposta:", err?.response?.data);
       const apiError =
         err?.response?.data?.message || "Email ou senha incorretos.";
       setError(apiError);
-      console.error("Erro de login:", err);
     } finally {
       setIsSubmitting(false);
     }

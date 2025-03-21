@@ -10,3 +10,7 @@ const api = axios.create({
 });
 
 export default api;
+
+export const getImageUrl = (postId: string) => {
+  return `${api.defaults.baseURL}/posts/${postId}/download-image`;
+};
