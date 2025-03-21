@@ -17,7 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { LogIn } from "lucide-react";
+import { LogIn, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { useIsClient } from "@/hooks/use-is-client";
 import api from "@/lib/api";
@@ -33,6 +33,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirecionar se já estiver autenticado
@@ -42,32 +43,59 @@ export default function LoginPage() {
     }
   }, [user, router, redirectPath, isClient, loading]);
 
-  console.log("Tentando login com:", { identifier: email, password: "***" });
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+    setDebugInfo(null);
     setIsSubmitting(true);
 
-    try {
-      // Fazer a chamada API de login diretamente
-      const { data } = await api.post("/auths/login", {
-        identifier: email,
-        password,
-      });
+    // Dados de login
+    const loginData = {
+      identifier: email,
+      password: password,
+    };
 
-      if (data.accessToken) {
+    try {
+      console.log("Tentando login com:", {
+        identifier: email,
+        password: "***",
+      });
+      console.log("URL da API:", api.defaults.baseURL);
+
+      // Fazer a chamada API de login diretamente
+      const response = await api.post("/auths/login", loginData);
+
+      if (response.data.accessToken) {
         // Passar o token para o contexto
-        login(data.accessToken);
+        login(response.data.accessToken);
         router.push(redirectPath);
       } else {
-        setError("Credenciais inválidas");
+        setError("Resposta inválida do servidor: Token não encontrado");
+        setDebugInfo(JSON.stringify(response.data, null, 2));
       }
     } catch (err: any) {
       console.error("Erro de login:", err);
-      console.error("Resposta:", err?.response?.data);
+
+      // Informações detalhadas para debug
+      const errorDetails = {
+        message: err?.message,
+        status: err?.response?.status,
+        statusText: err?.response?.statusText,
+        data: err?.response?.data,
+        url: err?.config?.url,
+        method: err?.config?.method,
+      };
+
+      console.error("Detalhes do erro:", errorDetails);
+
+      // Mensagem de erro amigável
       const apiError =
-        err?.response?.data?.message || "Email ou senha incorretos.";
+        err?.response?.data?.message ||
+        "Falha na autenticação. Verifique suas credenciais.";
       setError(apiError);
+
+      // Informações de debug para ajudar a identificar o problema
+      setDebugInfo(JSON.stringify(errorDetails, null, 2));
     } finally {
       setIsSubmitting(false);
     }
@@ -102,8 +130,9 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               {error && (
-                <div className="p-3 text-sm text-white bg-red-500 rounded-md">
-                  {error}
+                <div className="p-3 text-sm text-white bg-red-500 rounded-md flex items-start">
+                  <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                  <span>{error}</span>
                 </div>
               )}
 
@@ -153,6 +182,17 @@ export default function LoginPage() {
                   </>
                 )}
               </Button>
+
+              {debugInfo && (
+                <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-md overflow-auto text-xs">
+                  <details>
+                    <summary className="cursor-pointer font-medium">
+                      Informações de debug
+                    </summary>
+                    <pre className="mt-2 whitespace-pre-wrap">{debugInfo}</pre>
+                  </details>
+                </div>
+              )}
             </form>
           </CardContent>
           <CardFooter className="flex justify-center">

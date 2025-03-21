@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { usePathname } from "next/navigation";
 import PhotoModal from "@/components/photo-modal";
 import api from "@/lib/api";
 import { PhotoItem } from "@/components/photo-item";
@@ -21,7 +20,6 @@ export default function PhotoGrid() {
   const [loading, setLoading] = useState(false);
   const observer = useRef<IntersectionObserver>();
   const [tokenLoaded, setTokenLoaded] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     setPhotos([]);
@@ -84,24 +82,24 @@ export default function PhotoGrid() {
   );
 
   return (
-    <>
-      <div className="masonry-grid px-2">
+    <div className="container mx-auto px-4 py-4">
+      <div className="masonry-container">
         {photos.map((photo, i) => (
           <PhotoItem
             key={`${photo.id}-${i}`}
             photo={photo}
             onClick={setSelectedPhoto}
             innerRef={i === photos.length - 1 ? lastPhotoElementRef : null}
-            className="masonry-item mb-4"
           />
         ))}
       </div>
 
       {loading && (
         <div className="flex justify-center py-4">
-          <div className="loader">Carregando...</div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       )}
+
       {!loading && photos.length === 0 && <SkeletonLoader />}
 
       {selectedPhoto && (
@@ -112,29 +110,23 @@ export default function PhotoGrid() {
       )}
 
       <style jsx>{`
-        .masonry-grid {
-          display: grid;
-          grid-template-columns: repeat(1, 1fr);
-          grid-gap: 20px;
-          grid-auto-rows: 10px;
+        .masonry-container {
+          column-count: 1;
+          column-gap: 1.5rem;
         }
 
         @media (min-width: 640px) {
-          .masonry-grid {
-            grid-template-columns: repeat(2, 1fr);
+          .masonry-container {
+            column-count: 2;
           }
         }
 
         @media (min-width: 1024px) {
-          .masonry-grid {
-            grid-template-columns: repeat(3, 1fr);
+          .masonry-container {
+            column-count: 3;
           }
         }
-
-        .masonry-item {
-          grid-row-end: span var(--row-span, 30);
-        }
       `}</style>
-    </>
+    </div>
   );
 }

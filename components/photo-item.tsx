@@ -1,10 +1,7 @@
 "use client";
 
-import type React from "react";
-
-import { useState, useEffect, useRef } from "react";
-import api from "@/lib/api";
-import { useIsClient } from "@/hooks/use-is-client";
+import { useState, useEffect } from "react";
+import { getImageUrl } from "@/lib/api";
 
 interface PhotoItemProps {
   photo: any;
@@ -19,82 +16,44 @@ export function PhotoItem({
   className = "",
   innerRef,
 }: PhotoItemProps) {
-  const isClient = useIsClient();
   const [loaded, setLoaded] = useState(false);
-  const [rowSpan, setRowSpan] = useState(30); // Default row span
-  const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const imageUrl = `${api.defaults.baseURL}/posts/${photo.id}/download-image`;
-
-  // Calculate the height of the container and set the appropriate row span
-  const calculateRowSpan = () => {
-    if (containerRef.current) {
-      const height = containerRef.current.clientHeight;
-      const span = Math.ceil(height / 10); // 10px is the grid-auto-rows value
-      setRowSpan(span);
-    }
-  };
-
-  // Handle image load to get natural dimensions
-  const handleImageLoad = () => {
-    if (imageRef.current) {
-      setLoaded(true);
-      // Use setTimeout to ensure the image has rendered completely
-      setTimeout(calculateRowSpan, 100);
-    }
-  };
+  const [imageUrl, setImageUrl] = useState("");
 
   useEffect(() => {
-    if (!isClient) return;
-
-    // Set up resize observer to recalculate on window resize
-    const resizeObserver = new ResizeObserver(() => {
-      if (loaded) calculateRowSpan();
-    });
-
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
+    // Construir a URL da imagem
+    if (photo && photo.id) {
+      setImageUrl(getImageUrl(photo.id));
     }
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [loaded, isClient]);
+  }, [photo]);
 
   return (
     <div
       ref={innerRef}
-      className={`${className} cursor-pointer`}
-      style={
-        isClient
-          ? ({ "--row-span": rowSpan } as React.CSSProperties)
-          : undefined
-      }
+      className={`${className} mb-4 break-inside-avoid`}
       onClick={() => onClick(photo)}
     >
-      <div
-        ref={containerRef}
-        className="overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 bg-background"
-      >
+      <div className="overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 bg-background cursor-pointer">
+        {/* Container da imagem com proporção original */}
         <div className="relative w-full">
-          {/* Image container with dynamic aspect ratio */}
-          <img
-            ref={imageRef}
-            src={imageUrl || "/placeholder.svg"}
-            alt={photo.caption || "Foto"}
-            onLoad={handleImageLoad}
-            className="w-full h-auto"
-          />
-
-          {!loaded && (
-            <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+          {imageUrl && (
+            <img
+              src={imageUrl || "/placeholder.svg"}
+              alt={photo.caption || "Foto"}
+              onLoad={() => setLoaded(true)}
+              className="w-full h-auto"
+            />
           )}
+
+          {/* Placeholder de carregamento */}
+          {!loaded && <div className="w-full h-48 bg-gray-300 animate-pulse" />}
         </div>
-        <div className="p-2 bg-background">
-          <h3 className="text-sm font-medium truncate">
+
+        {/* Informações da foto com altura fixa */}
+        <div className="p-3 h-[60px] flex flex-col justify-center">
+          <h3 className="text-sm font-medium truncate mb-1">
             {photo.caption || "Sem título"}
           </h3>
-          <div className="flex space-x-2 text-xs text-muted-foreground">
+          <div className="flex space-x-3 text-xs text-muted-foreground">
             <span>{photo._count?.likes || 0} Likes</span>
             <span>{photo._count?.comments || 0} Comentários</span>
           </div>

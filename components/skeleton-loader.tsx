@@ -1,50 +1,28 @@
 "use client";
 
-import type React from "react";
-import { useIsClient } from "@/hooks/use-is-client";
-
 export function SkeletonLoader() {
-  const isClient = useIsClient();
-
-  // Use a stable seed for server rendering
-  const items = Array.from({ length: 12 }).map((_, index) => {
-    // Use deterministic values for server rendering
-    // These will be replaced with random values on the client
-    const aspectRatio = 0.75; // Fixed aspect ratio for server
-    const rowSpan = 30; // Fixed row span for server
-
-    return { index, aspectRatio, rowSpan };
-  });
+  // Criar um array de 12 itens para o skeleton
+  const items = Array.from({ length: 12 });
 
   return (
-    <div className="masonry-grid px-2">
-      {items.map((item) => {
-        // Only use random values on the client
-        const aspectRatio = isClient
-          ? Math.random() * 0.6 + 0.5
-          : item.aspectRatio;
-        const rowSpan = isClient
-          ? Math.floor(Math.random() * 20) + 20
-          : item.rowSpan;
+    <div className="masonry-container">
+      {items.map((_, index) => {
+        // Altura aleatória para simular imagens de diferentes tamanhos
+        const height = Math.floor(Math.random() * 150) + 150; // Entre 150px e 300px
 
         return (
-          <div
-            key={item.index}
-            className="masonry-item mb-4"
-            style={
-              isClient
-                ? ({ "--row-span": rowSpan } as React.CSSProperties)
-                : undefined
-            }
-          >
+          <div key={index} className="mb-4 break-inside-avoid">
             <div className="overflow-hidden rounded-lg shadow-md bg-background">
+              {/* Placeholder da imagem com altura variável */}
               <div
-                className="relative w-full bg-gray-300 animate-pulse"
-                style={{ paddingBottom: `${aspectRatio * 100}%` }}
+                className="w-full bg-gray-300 animate-pulse"
+                style={{ height: `${height}px` }}
               />
-              <div className="p-2">
+
+              {/* Placeholder do texto com altura fixa */}
+              <div className="p-3 h-[60px] flex flex-col justify-center">
                 <div className="h-4 bg-gray-300 animate-pulse rounded w-3/4 mb-2"></div>
-                <div className="flex space-x-2">
+                <div className="flex space-x-3">
                   <div className="h-3 bg-gray-300 animate-pulse rounded w-16"></div>
                   <div className="h-3 bg-gray-300 animate-pulse rounded w-24"></div>
                 </div>
@@ -55,27 +33,21 @@ export function SkeletonLoader() {
       })}
 
       <style jsx>{`
-        .masonry-grid {
-          display: grid;
-          grid-template-columns: repeat(1, 1fr);
-          grid-gap: 20px;
-          grid-auto-rows: 10px;
+        .masonry-container {
+          column-count: 1;
+          column-gap: 1.5rem;
         }
 
         @media (min-width: 640px) {
-          .masonry-grid {
-            grid-template-columns: repeat(2, 1fr);
+          .masonry-container {
+            column-count: 2;
           }
         }
 
         @media (min-width: 1024px) {
-          .masonry-grid {
-            grid-template-columns: repeat(3, 1fr);
+          .masonry-container {
+            column-count: 3;
           }
-        }
-
-        .masonry-item {
-          grid-row-end: span var(--row-span, 30);
         }
       `}</style>
     </div>
