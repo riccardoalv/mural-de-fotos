@@ -51,22 +51,25 @@ export default function ProfilePage() {
     try {
       const token = localStorage.getItem("token");
 
-      // Cria o payload removendo os itens não informados
-      const payload = {};
-      if (name) payload.name = name;
-      if (bio) payload.bio = bio;
-      if (password) payload.password = password;
-
-      // Faz a requisição PATCH conforme o curl informado
-      const response = await api.patch("/users/me", payload, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      // A requisição PATCH segue o curl informado:
+      // curl -X 'PATCH' 'http://computacao.unir.br/mural/api/users/me'
+      //   -H 'accept: application/json'
+      //   -H 'Authorization: Bearer <token>'
+      //   -H 'Content-Type: application/json'
+      //   -d '{"name": "string", "bio": "string", "password": "string"}'
+      const response = await api.patch(
+        "/users/me",
+        { name, bio, password },
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
-      // Atualiza o perfil no auth context, se disponível
+      // Atualiza o perfil no contexto, se disponível
       if (updateProfile) {
         updateProfile(response.data);
       }

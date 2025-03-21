@@ -51,8 +51,6 @@ export default function LoginPage() {
       // Armazena o token no localStorage
       localStorage.setItem("token", data.accessToken);
 
-      // Atualiza o estado do usuário no contexto.
-      // Como a resposta da API traz "email" e "sub", montamos um objeto de usuário
       if (login) {
         login({ email: data.email, id: data.sub });
       }

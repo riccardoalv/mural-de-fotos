@@ -7,42 +7,74 @@ import { handleAddComment } from "@/lib/handleAddComment";
 import { handleLike } from "@/lib/handleLike";
 import { PhotoItem } from "./photo-item";
 import { SkeletonLoader } from "./skeleton-loader";
+import { useAuth } from "@/context/auth-context";
 
 export default function PhotoGrid() {
-  const [photos, setPhotos] = useState([]);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const { user } = useAuth();
+  const isAuthenticated = Boolean(user);
+  const [token, setToken] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const observer = useRef();
+  const observer = useRef<IntersectionObserver>();
+  const [tokenLoaded, setTokenLoaded] = useState(false);
 
-  const fetchPhotos = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get(`posts?limit=10&page=${page}`);
-      const data = response.data.data;
-      setPhotos((prevPhotos) => [...prevPhotos, ...data]);
-      setHasMore(data.length === 10);
-      setPage((prevPage) => prevPage + 1);
-    } catch (error) {
-      console.error("Erro ao buscar fotos:", error);
-    }
-    setLoading(false);
-  };
+  // Reset feed ao mudar auth
+  useEffect(() => {
+    setPhotos([]);
+    setPage(1);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    fetchPhotos();
+    const saved = localStorage.getItem("token");
+    setToken(saved);
+    setTokenLoaded(true);
   }, []);
+
+  useEffect(() => {
+    if (!tokenLoaded) return;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const url = `posts?limit=10&page=${page}`;
+        const config =
+          isAuthenticated && token
+            ? {
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }
+            : undefined;
+
+        const { data } = await api.get(url, config);
+        setPhotos((prev) => [...prev, ...data.data]);
+        setHasMore(data.data.length === 10);
+      } catch (error) {
+        console.error("Erro ao buscar fotos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [page, isAuthenticated, token, tokenLoaded]);
 
   const lastPhotoElementRef = useCallback(
     (node) => {
       if (loading) return;
       if (observer.current) observer.current.disconnect();
+
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && hasMore) {
-          fetchPhotos();
+          setPage((prev) => prev + 1);
         }
       });
+
       if (node) observer.current.observe(node);
     },
     [loading, hasMore],
@@ -50,14 +82,13 @@ export default function PhotoGrid() {
 
   return (
     <>
-      {/* Layout tipo Masonry (estilo Pinterest) */}
       <div className="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4">
-        {photos.map((photo, index) => (
+        {photos.map((photo, i) => (
           <PhotoItem
-            key={`${photo.id}-${index}`}
+            key={`${photo.id}-${i}`}
             photo={photo}
             onClick={setSelectedPhoto}
-            innerRef={photos.length === index + 1 ? lastPhotoElementRef : null}
+            innerRef={i === photos.length - 1 ? lastPhotoElementRef : null}
           />
         ))}
       </div>
@@ -67,10 +98,8 @@ export default function PhotoGrid() {
           <div className="loader">Carregando...</div>
         </div>
       )}
+      {!loading && photos.length === 0 && <SkeletonLoader />}
 
-      {photos.length === 0 && !loading && <SkeletonLoader />}
-
-      {/* Modal para exibir a foto em destaque */}
       {selectedPhoto && (
         <PhotoModal
           photo={selectedPhoto}
