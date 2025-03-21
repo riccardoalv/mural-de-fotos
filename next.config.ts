@@ -10,8 +10,6 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["computacao.unir.br"],
   },
-  basePath: "/mural",
-  assetPrefix: "/mural",
 };
 
 export default nextConfig;
