@@ -1,28 +1,50 @@
 "use client";
 
+import type React from "react";
+import { useIsClient } from "@/hooks/use-is-client";
+
 export function SkeletonLoader() {
-  // Criar um array de 12 itens para o skeleton
-  const items = Array.from({ length: 12 });
+  const isClient = useIsClient();
+
+  // Use a stable seed for server rendering
+  const items = Array.from({ length: 12 }).map((_, index) => {
+    // Use deterministic values for server rendering
+    // These will be replaced with random values on the client
+    const aspectRatio = 0.75; // Fixed aspect ratio for server
+    const rowSpan = 30; // Fixed row span for server
+
+    return { index, aspectRatio, rowSpan };
+  });
 
   return (
-    <div className="masonry-container">
-      {items.map((_, index) => {
-        // Altura aleatória para simular imagens de diferentes tamanhos
-        const height = Math.floor(Math.random() * 150) + 150; // Entre 150px e 300px
+    <div className="masonry-grid px-2 md:px-4 lg:px-6 xl:px-8">
+      {items.map((item) => {
+        // Only use random values on the client
+        const aspectRatio = isClient
+          ? Math.random() * 0.6 + 0.5
+          : item.aspectRatio;
+        const rowSpan = isClient
+          ? Math.floor(Math.random() * 20) + 20
+          : item.rowSpan;
 
         return (
-          <div key={index} className="mb-4 break-inside-avoid">
+          <div
+            key={item.index}
+            className="masonry-item mb-4"
+            style={
+              isClient
+                ? ({ "--row-span": rowSpan } as React.CSSProperties)
+                : undefined
+            }
+          >
             <div className="overflow-hidden rounded-lg shadow-md bg-background">
-              {/* Placeholder da imagem com altura variável */}
               <div
-                className="w-full bg-gray-300 animate-pulse"
-                style={{ height: `${height}px` }}
+                className="relative w-full bg-gray-300 animate-pulse"
+                style={{ paddingBottom: `${aspectRatio * 100}%` }}
               />
-
-              {/* Placeholder do texto com altura fixa */}
-              <div className="p-3 h-[60px] flex flex-col justify-center">
+              <div className="p-2">
                 <div className="h-4 bg-gray-300 animate-pulse rounded w-3/4 mb-2"></div>
-                <div className="flex space-x-3">
+                <div className="flex space-x-2">
                   <div className="h-3 bg-gray-300 animate-pulse rounded w-16"></div>
                   <div className="h-3 bg-gray-300 animate-pulse rounded w-24"></div>
                 </div>
@@ -33,21 +55,57 @@ export function SkeletonLoader() {
       })}
 
       <style jsx>{`
-        .masonry-container {
-          column-count: 1;
-          column-gap: 1.5rem;
+        .masonry-grid {
+          display: grid;
+          grid-template-columns: repeat(1, 1fr);
+          grid-gap: 16px;
+          grid-auto-rows: 10px;
+          max-width: 1920px;
+          margin: 0 auto;
         }
 
+        /* Dispositivos móveis pequenos (>= 480px) */
+        @media (min-width: 480px) {
+          .masonry-grid {
+            grid-template-columns: repeat(2, 1fr);
+            grid-gap: 16px;
+          }
+        }
+
+        /* Tablets (>= 640px) */
         @media (min-width: 640px) {
-          .masonry-container {
-            column-count: 2;
+          .masonry-grid {
+            grid-template-columns: repeat(2, 1fr);
+            grid-gap: 20px;
           }
         }
 
+        /* Desktops médios (>= 1024px) */
         @media (min-width: 1024px) {
-          .masonry-container {
-            column-count: 3;
+          .masonry-grid {
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 24px;
           }
+        }
+
+        /* Desktops grandes (>= 1280px) */
+        @media (min-width: 1280px) {
+          .masonry-grid {
+            grid-template-columns: repeat(4, 1fr);
+            grid-gap: 28px;
+          }
+        }
+
+        /* Telas muito grandes (>= 1536px) */
+        @media (min-width: 1536px) {
+          .masonry-grid {
+            grid-template-columns: repeat(5, 1fr);
+            grid-gap: 32px;
+          }
+        }
+
+        .masonry-item {
+          grid-row-end: span var(--row-span, 30);
         }
       `}</style>
     </div>

@@ -77,6 +77,10 @@ export default function Header() {
         <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
 
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/about">Sobre</Link>
+          </Button>
+
           <Button variant="outline" onClick={handleSubmitPhoto}>
             <Upload className="h-4 w-4 mr-2" />
             <span>Enviar Foto</span>
@@ -168,6 +172,12 @@ export default function Header() {
                 <span className="text-sm font-medium">Tema</span>
                 <ThemeToggle />
               </div>
+
+              <Button variant="ghost" asChild className="justify-start w-full">
+                <Link href="/about">
+                  <span>Sobre</span>
+                </Link>
+              </Button>
 
               <div className="h-px bg-border my-1" />
 
