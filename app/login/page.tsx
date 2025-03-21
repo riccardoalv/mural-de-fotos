@@ -63,11 +63,11 @@ export default function LoginPage() {
       console.log("URL da API:", api.defaults.baseURL);
 
       // Fazer a chamada API de login diretamente
-      const response = await api.post("/auths/login", loginData);
+      const response = await api.post("/auths/login", loginData, {});
 
-      if (response.data.accessToken) {
+      if (response.data.access_token) {
         // Passar o token para o contexto
-        login(response.data.accessToken);
+        login(response.data.access_token);
         router.push(redirectPath);
       } else {
         setError("Resposta inválida do servidor: Token não encontrado");
