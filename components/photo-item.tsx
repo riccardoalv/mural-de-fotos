@@ -3,7 +3,6 @@
 import type React from "react";
 
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { getImageUrl } from "@/lib/api";
 import { Heart, MessageCircle, User, Play } from "lucide-react";
@@ -34,6 +33,7 @@ export function PhotoItem({
   const [isVideo, setIsVideo] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Definir isMounted após a montagem do componente para evitar problemas de hidratação
   useEffect(() => {
@@ -59,15 +59,13 @@ export function PhotoItem({
   }, [photo]);
 
   // Detectar quando a mídia carrega
-  const handleImageLoad = (result: {
-    naturalWidth: number;
-    naturalHeight: number;
-  }) => {
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     setIsLoading(false);
+    const img = e.currentTarget;
 
     // Calcular o aspect ratio
-    if (result.naturalWidth && result.naturalHeight) {
-      const ratio = result.naturalWidth / result.naturalHeight;
+    if (img.naturalWidth && img.naturalHeight) {
+      const ratio = img.naturalWidth / img.naturalHeight;
       setAspectRatio(ratio);
 
       // Determinar se a imagem é horizontal (paisagem)
@@ -98,8 +96,9 @@ export function PhotoItem({
   // Add error handling for image loading
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     console.error("Erro ao carregar imagem:", mediaUrl);
+    setIsLoading(false);
     // You could set a fallback image here if needed
-    // e.target.src = "/placeholder.svg?height=400&width=400"
+    e.currentTarget.src = "/placeholder.svg?height=400&width=400";
   };
 
   // Valor padrão para aspect ratio até que a mídia carregue
@@ -197,22 +196,15 @@ export function PhotoItem({
                 </div>
               </>
             ) : (
-              <Image
+              <img
+                ref={imgRef}
                 src={mediaUrl || "/placeholder.svg?height=400&width=400"}
                 alt={photo.caption || "Foto"}
-                fill
-                sizes={
-                  isVeryHorizontal
-                    ? "(max-width: 480px) 100vw, (max-width: 768px) 100vw, (max-width: 1024px) 85vw, 70vw"
-                    : isHorizontal
-                      ? "(max-width: 480px) 100vw, (max-width: 768px) 60vw, (max-width: 1024px) 40vw, 30vw"
-                      : "(max-width: 480px) 100vw, (max-width: 768px) 60vw, (max-width: 1024px) 40vw, 30vw"
-                }
-                className={`object-cover transition-transform duration-500 group-hover:scale-105 ${isLoading ? "opacity-0" : "opacity-100"}`}
-                onLoadingComplete={handleImageLoad}
+                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isLoading ? "opacity-0" : "opacity-100"}`}
+                onLoad={handleImageLoad}
                 onError={handleImageError}
-                priority={false}
-                quality={90}
+                loading="lazy"
+                crossOrigin="anonymous"
               />
             )}
 
