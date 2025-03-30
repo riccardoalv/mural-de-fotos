@@ -119,10 +119,16 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
         // Verificar se é um vídeo com base na propriedade isVideo do post
         setIsVideo(!!data.isVideo);
 
-        // Usar getImageUrl para ambos os tipos de mídia
-        const imageUrl = getImageUrl(postId);
-        console.log("URL da imagem:", imageUrl); // Log para depuração
-        setMediaUrl(imageUrl);
+        try {
+          // Usar getImageUrl para ambos os tipos de mídia
+          const imageUrl = getImageUrl(postId);
+          console.log("URL da imagem no modal:", imageUrl); // Log para depuração
+          setMediaUrl(imageUrl);
+        } catch (error) {
+          console.error("Erro ao gerar URL da imagem no modal:", error);
+          // Fallback to direct URL construction
+          setMediaUrl(`${api.defaults.baseURL}/posts/${postId}/download-image`);
+        }
 
         // Verificar se o usuário atual curtiu a foto usando o endpoint específico
         if (isAuthenticated && savedToken) {

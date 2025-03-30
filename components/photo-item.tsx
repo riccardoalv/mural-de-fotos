@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { getImageUrl } from "@/lib/api";
 import { Heart, MessageCircle, User, Play } from "lucide-react";
+import api from "@/lib/api";
 
 interface PhotoItemProps {
   photo: any;
@@ -44,8 +45,16 @@ export function PhotoItem({
       // Verificar se é um vídeo com base na propriedade isVideo do post
       setIsVideo(!!photo.isVideo);
 
-      // Usar getImageUrl para ambos os tipos de mídia
-      setMediaUrl(getImageUrl(photo.id));
+      try {
+        // Usar getImageUrl para ambos os tipos de mídia
+        const url = getImageUrl(photo.id);
+        console.log("URL da mídia para item:", photo.id, url);
+        setMediaUrl(url);
+      } catch (error) {
+        console.error("Erro ao gerar URL da mídia:", error, photo.id);
+        // Fallback to a direct URL if needed
+        setMediaUrl(`${api.defaults.baseURL}/posts/${photo.id}/download-image`);
+      }
     }
   }, [photo]);
 
@@ -84,6 +93,13 @@ export function PhotoItem({
       setIsVeryHorizontal(ratio > 1.8);
       setIsVertical(ratio < 0.8);
     }
+  };
+
+  // Add error handling for image loading
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.error("Erro ao carregar imagem:", mediaUrl);
+    // You could set a fallback image here if needed
+    // e.target.src = "/placeholder.svg?height=400&width=400"
   };
 
   // Valor padrão para aspect ratio até que a mídia carregue
@@ -194,6 +210,7 @@ export function PhotoItem({
                 }
                 className={`object-cover transition-transform duration-500 group-hover:scale-105 ${isLoading ? "opacity-0" : "opacity-100"}`}
                 onLoadingComplete={handleImageLoad}
+                onError={handleImageError}
                 priority={false}
                 quality={90}
               />
