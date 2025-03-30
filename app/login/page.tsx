@@ -56,12 +56,6 @@ export default function LoginPage() {
     };
 
     try {
-      console.log("Tentando login com:", {
-        identifier: email,
-        password: "***",
-      });
-      console.log("URL da API:", api.defaults.baseURL);
-
       // Fazer a chamada API de login diretamente
       const response = await api.post("/auths/login", loginData, {});
 

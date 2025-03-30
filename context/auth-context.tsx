@@ -49,12 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para extrair informações do token
   const getUserFromToken = (token: string): User | null => {
     try {
-      console.log("Decodificando token:", token.substring(0, 15) + "...");
       const decoded = jwtDecode<JwtPayload>(token);
-      console.log("Token decodificado:", {
-        email: decoded.email,
-        id: decoded.sub,
-      });
       return {
         id: decoded.sub,
         email: decoded.email,
@@ -76,7 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const token = localStorage.getItem("token");
-        console.log("Token encontrado:", token ? "Sim" : "Não");
 
         if (!token) {
           setUser(null);
@@ -91,7 +85,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userData);
         } else {
           // Token inválido
-          console.log("Token inválido, removendo...");
           localStorage.removeItem("token");
           setUser(null);
         }
@@ -109,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Login apenas armazena o token e extrai informações
   const login = (token: string) => {
     if (typeof window !== "undefined") {
-      console.log("Salvando token:", token.substring(0, 15) + "...");
       localStorage.setItem("token", token);
       const userData = getUserFromToken(token);
       setUser(userData);
@@ -119,7 +111,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout remove o token
   const logout = () => {
     if (typeof window !== "undefined") {
-      console.log("Removendo token e fazendo logout");
       localStorage.removeItem("token");
     }
     setUser(null);
@@ -130,7 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       // Garantir que avatarUrl seja preservado se estiver presente nos dados atualizados
       const updatedUser = { ...user, ...userData };
-      console.log("Perfil atualizado:", updatedUser);
       setUser(updatedUser);
     }
   };

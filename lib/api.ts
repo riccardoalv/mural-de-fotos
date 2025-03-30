@@ -20,7 +20,6 @@ export const getImageUrl = (postId: string) => {
     const url = new URL(`${baseUrl}/posts/${postId}/download-image`);
 
     // Log for debugging
-    console.log("URL da imagem gerada:", url.toString());
 
     return url.toString();
   } catch (error) {

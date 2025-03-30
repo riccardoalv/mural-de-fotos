@@ -110,13 +110,8 @@ export default function PostPage() {
         try {
           // Usar getImageUrl para ambos os tipos de mídia
           const url = getImageUrl(id as string);
-          console.log("URL da imagem na página de post:", url);
           setMediaUrl(url);
         } catch (error) {
-          console.error(
-            "Erro ao gerar URL da imagem na página de post:",
-            error,
-          );
           // Fallback to direct URL construction
           setMediaUrl(`${api.defaults.baseURL}/posts/${id}/download-image`);
         }

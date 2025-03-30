@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
@@ -18,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Save, Upload, Grid, AlertCircle } from "lucide-react";
-import api from "@/lib/api";
+import api, { getImageUrl } from "@/lib/api";
 import PhotoGrid from "@/components/photo-grid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { FilterOptions } from "@/components/filters";
@@ -28,82 +27,97 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export default function ProfilePage() {
   const { user, updateProfile } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"profile" | "posts">("profile");
+  const [activeTab, setActiveTab] = useState<
+    "profile" | "posts" | "likes" | "comments"
+  >("profile");
 
-  // Estados para os dados do perfil
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [password, setPassword] = useState("");
-  // Alterar os estados para usar avatarUrl em vez de avatar
   const [avatarUrl, setAvatarUrl] = useState("");
   const [originalData, setOriginalData] = useState({
     name: "",
     bio: "",
     avatarUrl: "",
   });
+
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [likedPosts, setLikedPosts] = useState([]);
+  const [userComments, setUserComments] = useState([]);
+  const [isLoadingLikes, setIsLoadingLikes] = useState(true);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filtros para mostrar apenas os posts do usuário atual
   const filters: FilterOptions = {
     order: "desc",
     orderBy: "createdAt",
     userId: user?.id,
   };
 
-  // Se o usuário não estiver autenticado, redireciona para o login;
-  // caso contrário, preenche os estados com os dados atuais
+  const handleSelectImage = () => {
+    fileInputRef.current?.click();
+  };
+
   useEffect(() => {
+    const fetchUserExtras = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await api.get(`/users/${user!.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = response.data;
+        console.log(data)
+        setLikedPosts(data.likes?.flatMap((it) => it.post) || []);
+        setUserComments(data.comments || []);
+      } catch (err) {
+        console.error("Erro ao carregar dados do usuário:", err);
+      } finally {
+        setIsLoadingLikes(false);
+        setIsLoadingComments(false);
+      }
+    };
+
     if (!user) {
       router.push("/login?redirect=/profile");
     } else {
       setName(user.name || "");
       setBio(user.bio || "");
-      // Alterar os estados para usar avatarUrl em vez de avatar
       setAvatarUrl(user.avatarUrl || "");
       setOriginalData({
         name: user.name || "",
         bio: user.bio || "",
         avatarUrl: user.avatarUrl || "",
       });
+
+      fetchUserExtras();
     }
-  }, [router, user]);
+  }, [user]);
 
-  // Verificar se houve alterações nos campos
   useEffect(() => {
-    const hasNameChanged = name !== originalData.name;
-    const hasBioChanged = bio !== originalData.bio;
-    const hasAvatarChanged = avatarUrl !== originalData.avatarUrl;
-    const hasPasswordChanged = password.length > 0;
-
-    setHasChanges(
-      hasNameChanged || hasBioChanged || hasAvatarChanged || hasPasswordChanged,
-    );
+    const hasChanged =
+      name !== originalData.name ||
+      bio !== originalData.bio ||
+      avatarUrl !== originalData.avatarUrl ||
+      password.length > 0;
+    setHasChanges(hasChanged);
   }, [name, bio, avatarUrl, password, originalData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Verificar se houve alguma alteração
-    if (!hasChanges) {
-      setError("Faça pelo menos uma alteração antes de salvar.");
-      return;
-    }
-
+    if (!hasChanges) return setError("Faça pelo menos uma alteração.");
+    setIsSubmitting(true);
     setError(null);
     setSuccess(false);
-    setIsSubmitting(true);
 
     try {
       const token = localStorage.getItem("token");
-
-      // Preparar dados para atualização
       const updateData: any = {};
-
       if (name !== originalData.name) updateData.name = name;
       if (bio !== originalData.bio) updateData.bio = bio;
       if (password) updateData.password = password;
@@ -111,79 +125,42 @@ export default function ProfilePage() {
         updateData.avatarUrl = avatarUrl;
 
       const response = await api.patch("/users/me", updateData, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Atualiza o perfil no contexto, se disponível
-      if (updateProfile) {
-        updateProfile(response.data);
-      }
-
-      // Atualizar os dados originais após salvar com sucesso
-      setOriginalData({
-        name,
-        bio,
-        avatarUrl,
-      });
-
-      // Limpar senha após salvar
+      updateProfile?.(response.data);
+      setOriginalData({ name, bio, avatarUrl });
       setPassword("");
-
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (error: any) {
-      console.error("Erro ao atualizar perfil:", error);
-      setError(
-        error?.response?.data?.message ||
-        "Erro ao atualizar perfil. Tente novamente.",
-      );
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Erro ao atualizar perfil.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Função para lidar com o upload do avatar
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+    if (!e.target.files?.[0]) return;
 
     const file = e.target.files[0];
-
-    // Mostrar preview local temporário
     const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        setAvatarUrl(reader.result); // Temporário para preview
-      }
-    };
+    reader.onloadend = () =>
+      typeof reader.result === "string" && setAvatarUrl(reader.result);
     reader.readAsDataURL(file);
 
-    // Iniciar upload para serviço externo
     setIsUploading(true);
-    setError(null);
-
     try {
       const imageUrl = await uploadImage(file);
-      setAvatarUrl(imageUrl); // Definir a URL real após o upload
-      console.log("Imagem enviada com sucesso:", imageUrl);
-    } catch (err: any) {
-      console.error("Erro ao fazer upload da imagem:", err);
-      setError("Falha ao fazer upload da imagem. Tente novamente.");
+      setAvatarUrl(imageUrl);
+    } catch (err) {
+      setError("Erro ao enviar imagem.");
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleSelectImage = () => {
-    fileInputRef.current?.click();
-  };
-
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <>
@@ -191,19 +168,20 @@ export default function ProfilePage() {
       <main className="container mx-auto px-4 py-8">
         <Tabs
           defaultValue="profile"
-          onValueChange={(value) => setActiveTab(value as "profile" | "posts")}
+          onValueChange={(value) => setActiveTab(value as typeof activeTab)}
         >
           <div className="flex justify-center mb-6">
             <TabsList>
               <TabsTrigger value="profile" className="px-6">
                 Perfil
               </TabsTrigger>
-              <TabsTrigger value="posts" className="px-6">
-                Meus Posts
-              </TabsTrigger>
+              <TabsTrigger value="posts">Meus Posts</TabsTrigger>
+              <TabsTrigger value="likes">Curtidas</TabsTrigger>
+              <TabsTrigger value="comments">Comentários</TabsTrigger>
             </TabsList>
           </div>
 
+          {/* Perfil */}
           <TabsContent value="profile" className="flex justify-center">
             <Card className="w-full max-w-md">
               <CardHeader>
@@ -230,7 +208,6 @@ export default function ProfilePage() {
                   )}
 
                   <div className="flex flex-col items-center space-y-4">
-                    {/* Atualizar o componente Avatar para usar avatarUrl */}
                     <Avatar className="h-24 w-24 relative">
                       {isUploading && (
                         <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
@@ -323,18 +300,92 @@ export default function ProfilePage() {
             </Card>
           </TabsContent>
 
+          {/* Meus Posts */}
           <TabsContent value="posts">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold flex items-center">
-                <Grid className="h-5 w-5 mr-2" />
-                Meus Posts
-              </h2>
-              <p className="text-muted-foreground mt-1">
-                Visualize e gerencie todos os seus posts
-              </p>
-            </div>
-
+            <h2 className="text-xl font-semibold mb-2 flex items-center">
+              <Grid className="h-5 w-5 mr-2" /> Meus Posts
+            </h2>
             <PhotoGrid filters={filters} />
+          </TabsContent>
+
+          {/* Curtidas */}
+          <TabsContent value="likes">
+            <Card>
+              <CardHeader>
+                <CardTitle>Fotos que você curtiu</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingLikes ? (
+                  <div className="flex justify-center py-8 animate-spin border-b-2 border-primary h-8 w-8 rounded-full" />
+                ) : likedPosts.length === 0 ? (
+                  <p className="text-center text-muted-foreground">
+                    Você ainda não curtiu nenhuma foto.
+                  </p>
+                ) : (
+                  <PhotoGrid
+                    filters={{ userId: user.id }}
+                    useDirectLinks={true}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Comentários */}
+          <TabsContent value="comments">
+            <Card>
+              <CardHeader>
+                <CardTitle>Seus comentários</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingComments ? (
+                  <div className="flex justify-center py-8 animate-spin border-b-2 border-primary h-8 w-8 rounded-full" />
+                ) : userComments.length === 0 ? (
+                  <p className="text-center text-muted-foreground">
+                    Você ainda não comentou nenhuma foto.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {userComments.map((comment: any) => (
+                      <div key={comment.id} className="border rounded-lg p-4">
+                        <div className="flex gap-3 items-start">
+                          <div className="h-12 w-12 rounded-md overflow-hidden flex-shrink-0">
+                            {comment.post.isVideo ? (
+                              <video
+                                src={getImageUrl(comment.post.id)}
+                                className="w-full h-full object-cover"
+                                controls
+                              />
+                            ) : (
+                              <img
+                                src={getImageUrl(comment.post.id)}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">
+                              {comment.post.caption || "Sem título"}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Comentário:{" "}
+                              <span className="text-foreground">
+                                {comment.content}
+                              </span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(comment.createdAt).toLocaleDateString(
+                                "pt-BR",
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

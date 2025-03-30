@@ -13,9 +13,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, MessageCircle, ImageIcon } from "lucide-react";
-import Image from "next/image";
 import { getImageUrl } from "@/lib/api";
 import api from "@/lib/api";
+import PhotoGrid from "@/components/photo-grid";
 
 export default function UserProfilePage() {
   const params = useParams();
@@ -247,27 +247,7 @@ export default function UserProfilePage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {userPosts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="relative aspect-square rounded-md overflow-hidden group"
-                      >
-                        <Image
-                          src={getImageUrl(post.id) || "/placeholder.svg"}
-                          alt={post.caption || "Foto publicada"}
-                          fill
-                          className="object-cover transition-transform group-hover:scale-105"
-                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <div className="text-white text-sm font-medium">
-                            {post.caption}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <PhotoGrid filters={{ userId }} useDirectLinks={true} />
                 )}
               </CardContent>
             </Card>
@@ -294,24 +274,25 @@ export default function UserProfilePage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {likedPosts.map((post) => (
+                  <div className="grid grid-cols-4 gap-2 md:gap-4">
+                    {likedPosts.map((post: any) => (
                       <div
                         key={post.id}
-                        className="relative aspect-square rounded-md overflow-hidden group"
+                        className="aspect-square overflow-hidden rounded-md"
                       >
-                        <Image
-                          src={getImageUrl(post.id) || "/placeholder.svg"}
-                          alt={post.caption || "Foto curtida"}
-                          fill
-                          className="object-cover transition-transform group-hover:scale-105"
-                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <div className="text-white text-sm font-medium">
-                            {post.caption}
-                          </div>
-                        </div>
+                        {post.isVideo ? (
+                          <video
+                            src={getImageUrl(post.id)}
+                            className="w-full h-full object-cover"
+                            controls
+                          />
+                        ) : (
+                          <img
+                            src={getImageUrl(post.id)}
+                            alt={post.caption || "Imagem curtida"}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -346,17 +327,22 @@ export default function UserProfilePage() {
                       <div key={comment.id} className="border rounded-lg p-4">
                         <div className="flex items-start gap-3">
                           <div className="relative h-12 w-12 flex-shrink-0 rounded-md overflow-hidden">
-                            <Image
-                              src={
-                                getImageUrl(comment.post.id) ||
-                                "/placeholder.svg" ||
-                                "/placeholder.svg"
-                              }
-                              alt={comment.post.caption || "Foto comentada"}
-                              fill
-                              className="object-cover"
-                              sizes="48px"
-                            />
+                            {comment.post.isVideo ? (
+                              <video
+                                src={getImageUrl(comment.post.id)}
+                                className="object-cover w-full h-full rounded-md"
+                                controls
+                              />
+                            ) : (
+                              <img
+                                src={
+                                  getImageUrl(comment.post.id) ||
+                                  "/placeholder.svg"
+                                }
+                                alt={comment.post.caption || "Foto comentada"}
+                                className="object-cover w-full h-full rounded-md"
+                              />
+                            )}
                           </div>
                           <div className="flex-1">
                             <div className="font-medium text-sm">

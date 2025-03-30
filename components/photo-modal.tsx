@@ -137,10 +137,8 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
         try {
           // Usar getImageUrl para ambos os tipos de mídia
           const imageUrl = getImageUrl(postId);
-          console.log("URL da imagem no modal:", imageUrl); // Log para depuração
           setMediaUrl(imageUrl);
         } catch (error) {
-          console.error("Erro ao gerar URL da imagem no modal:", error);
           // Fallback to direct URL construction
           setMediaUrl(`${api.defaults.baseURL}/posts/${postId}/download-image`);
         }
