@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -39,7 +41,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EditPostDialog } from "@/components/edit-post-dialog";
-import Head from "next/head";
 
 export default function PostPage() {
   const { id } = useParams();
@@ -65,6 +66,7 @@ export default function PostPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Verificar se o usuário atual é o proprietário do post
   const isOwner = user && photoData?.user?.id === user.id;
@@ -105,8 +107,19 @@ export default function PostPage() {
         // Verificar se é um vídeo com base na propriedade isVideo do post
         setIsVideo(!!data.isVideo);
 
-        // Usar getImageUrl para ambos os tipos de mídia
-        setMediaUrl(getImageUrl(id as string));
+        try {
+          // Usar getImageUrl para ambos os tipos de mídia
+          const url = getImageUrl(id as string);
+          console.log("URL da imagem na página de post:", url);
+          setMediaUrl(url);
+        } catch (error) {
+          console.error(
+            "Erro ao gerar URL da imagem na página de post:",
+            error,
+          );
+          // Fallback to direct URL construction
+          setMediaUrl(`${api.defaults.baseURL}/posts/${id}/download-image`);
+        }
 
         // Verificar se o usuário atual curtiu a foto usando o endpoint específico
         if (isAuthenticated && savedToken) {
@@ -326,6 +339,14 @@ export default function PostPage() {
     router.back();
   };
 
+  // Adicione esta função para lidar com erros de carregamento da imagem
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.error("Erro ao carregar a imagem:", mediaUrl);
+    setImageError(true);
+    // Set a fallback image
+    e.currentTarget.src = "/placeholder.svg?height=400&width=400";
+  };
+
   return (
     <>
       <Header />
@@ -409,6 +430,8 @@ export default function PostPage() {
                     alt={photoData.caption || "Foto"}
                     className="w-full h-auto object-contain"
                     onLoad={handleImageLoad}
+                    onError={handleImageError}
+                    crossOrigin="anonymous"
                   />
                 </div>
               )}

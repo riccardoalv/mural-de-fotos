@@ -6,7 +6,15 @@ import Header from "@/components/header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Calendar, Mail, UserIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Mail,
+  UserIcon,
+  Heart,
+  MessageCircle,
+  Image,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import api from "@/lib/api";
@@ -113,15 +121,33 @@ export default function UserProfilePage() {
 
                 <div className="flex justify-center gap-6 mt-4">
                   <div className="flex flex-col items-center">
-                    <p className="text-2xl font-bold">{user.totalLikes || 0}</p>
+                    <div className="flex items-center gap-1">
+                      <Heart className="h-5 w-5 text-primary" />
+                      <p className="text-2xl font-bold">
+                        {user.totalLikes || 0}
+                      </p>
+                    </div>
                     <p className="text-sm text-muted-foreground">Likes</p>
                   </div>
 
                   <div className="flex flex-col items-center">
-                    <p className="text-2xl font-bold">
-                      {user.totalComments || 0}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      <MessageCircle className="h-5 w-5 text-primary" />
+                      <p className="text-2xl font-bold">
+                        {user.totalComments || 0}
+                      </p>
+                    </div>
                     <p className="text-sm text-muted-foreground">Comentários</p>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-1">
+                      <Image className="h-5 w-5 text-primary" />
+                      <p className="text-2xl font-bold">
+                        {user.totalPosts || 0}
+                      </p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Posts</p>
                   </div>
                 </div>
 
@@ -161,7 +187,7 @@ export default function UserProfilePage() {
               </h2>
             </div>
 
-            <PhotoGrid filters={filters} />
+            <UserPhotoGrid filters={filters} />
           </>
         ) : (
           <div className="text-center py-8">
@@ -171,4 +197,9 @@ export default function UserProfilePage() {
       </main>
     </>
   );
+}
+
+// Componente específico para o perfil do usuário que usa links diretos
+function UserPhotoGrid({ filters }: { filters: FilterOptions }) {
+  return <PhotoGrid filters={filters} useDirectLinks={true} />;
 }

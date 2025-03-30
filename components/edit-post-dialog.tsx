@@ -78,8 +78,15 @@ export function EditPostDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog
+      open={isOpen}
+      onOpenChange={onClose}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <DialogContent
+        className="sm:max-w-[425px]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>Editar Post</DialogTitle>
         </DialogHeader>

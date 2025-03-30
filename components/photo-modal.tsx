@@ -366,15 +366,20 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
   // Fechar o modal ao clicar fora do conteúdo
   const handleBackdropClick = (e: React.MouseEvent) => {
+    // Não fechar se o modal de edição estiver aberto
+    if (isEditDialogOpen) return;
+
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
       onClose();
     }
   };
 
   // Adicione esta função para lidar com erros de carregamento da imagem
-  const handleImageError = () => {
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     console.error("Erro ao carregar a imagem:", mediaUrl);
     setImageError(true);
+    // Set a fallback image
+    e.currentTarget.src = "/placeholder.svg?height=400&width=400";
   };
 
   if (!isOpen) return null;
@@ -499,6 +504,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                       onLoad={handleImageLoad}
                       onError={handleImageError}
                       style={{ display: "block" }}
+                      crossOrigin="anonymous"
                     />
                   )}
                 </div>
@@ -731,12 +737,14 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
       {/* Diálogo de edição de post */}
       {isEditDialogOpen && (
-        <EditPostDialog
-          post={photoData}
-          isOpen={isEditDialogOpen}
-          onClose={() => setIsEditDialogOpen(false)}
-          onPostUpdated={handlePostUpdated}
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <EditPostDialog
+            post={photoData}
+            isOpen={isEditDialogOpen}
+            onClose={() => setIsEditDialogOpen(false)}
+            onPostUpdated={handlePostUpdated}
+          />
+        </div>
       )}
     </div>
   );

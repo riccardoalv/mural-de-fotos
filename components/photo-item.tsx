@@ -13,6 +13,7 @@ interface PhotoItemProps {
   onClick?: (photo: any) => void;
   className?: string;
   innerRef?: (node: HTMLDivElement | null) => void;
+  useDirectLink?: boolean; // Nova prop para controlar o comportamento
 }
 
 export function PhotoItem({
@@ -20,6 +21,7 @@ export function PhotoItem({
   onClick,
   className = "",
   innerRef,
+  useDirectLink = false,
 }: PhotoItemProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -133,27 +135,33 @@ export function PhotoItem({
       localStorage.setItem("scrollPosition_home", window.scrollY.toString());
     }
 
-    // Se não for clique com botão direito, abrir o modal
-    if (e.button !== 2) {
-      e.preventDefault();
-      // Atualizar a URL com o parâmetro post
+    // Se for clique com botão direito, permitir o comportamento padrão (abrir em nova aba)
+    if (e.button === 2) {
+      return;
+    }
+
+    e.preventDefault();
+
+    // Se useDirectLink for true, navegar diretamente para a página do post
+    if (useDirectLink) {
+      router.push(`/post/${photo.id}`);
+    } else {
+      // Caso contrário, abrir o modal (comportamento atual)
       const url = new URL(window.location.href);
       url.searchParams.set("post", photo.id);
       window.history.pushState({}, "", url.toString());
     }
-    // Clique com botão direito segue o comportamento padrão (abrir em nova aba)
   };
+
+  // Determinar o href com base na prop useDirectLink
+  const linkHref = useDirectLink ? `/post/${photo.id}` : `/?post=${photo.id}`;
 
   return (
     <div
       ref={innerRef}
       className={`${className} photo-item ${getHighlightClass()}`}
     >
-      <a
-        href={`/?post=${photo.id}`}
-        onClick={handlePhotoClick}
-        className="block h-full"
-      >
+      <a href={linkHref} onClick={handlePhotoClick} className="block h-full">
         <div
           ref={containerRef}
           className="relative overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 bg-background cursor-pointer group h-full"

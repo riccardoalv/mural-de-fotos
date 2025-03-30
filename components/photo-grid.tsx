@@ -10,9 +10,13 @@ import type { FilterOptions } from "@/components/filters";
 
 interface PhotoGridProps {
   filters?: FilterOptions;
+  useDirectLinks?: boolean; // Nova prop para controlar o comportamento
 }
 
-export default function PhotoGrid({ filters }: PhotoGridProps) {
+export default function PhotoGrid({
+  filters,
+  useDirectLinks = false,
+}: PhotoGridProps) {
   const isClient = useIsClient();
   const { user } = useAuth();
   const isAuthenticated = Boolean(user);
@@ -231,6 +235,7 @@ export default function PhotoGrid({ filters }: PhotoGridProps) {
                 key={photo.id}
                 photo={photo}
                 innerRef={getLastItemRef(photo, colIndex, photoIndex)}
+                useDirectLink={useDirectLinks} // Passar a prop para o PhotoItem
               />
             ))}
           </div>
