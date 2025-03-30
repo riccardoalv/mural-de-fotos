@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import type React from "react";
+
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import Header from "@/components/header";
@@ -9,25 +11,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ImageIcon, X, Plus } from "lucide-react";
+import { Upload, ImageIcon, X, Film } from "lucide-react";
 import Image from "next/image";
 import api from "@/lib/api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type ImagePreview = {
+type MediaPreview = {
   id: string;
   file: File;
   preview: string;
   title: string;
   description: string;
   isPublic: boolean;
+  type: "image" | "video";
 };
 
 export default function UploadPage() {
   const { user, logout } = useAuth();
   const isAuthenticated = Boolean(user);
   const router = useRouter();
-  const [selectedImages, setSelectedImages] = useState<ImagePreview[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<MediaPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"images" | "videos">("images");
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/");
@@ -35,41 +41,51 @@ export default function UploadPage() {
 
   useEffect(() => {
     return () =>
-      selectedImages.forEach((img) => URL.revokeObjectURL(img.preview));
-  }, [selectedImages]);
+      selectedMedia.forEach((media) => URL.revokeObjectURL(media.preview));
+  }, [selectedMedia]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
 
-    const newImages = Array.from(e.target.files)
-      .filter((file) => file.type.startsWith("image/"))
-      .map((file) => ({
-        id: Math.random().toString(36).substring(2, 9),
-        file,
-        preview: URL.createObjectURL(file),
-        title: file.name.split(".")[0],
-        description: "",
-        isPublic: false,
-      }));
+    const newFiles = Array.from(e.target.files)
+      .filter((file) => {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+        return isImage || isVideo;
+      })
+      .map((file) => {
+        const isVideo = file.type.startsWith("video/");
+        return {
+          id: Math.random().toString(36).substring(2, 9),
+          file,
+          preview: URL.createObjectURL(file),
+          title: file.name.split(".")[0],
+          description: "",
+          isPublic: false,
+          type: isVideo ? ("video" as const) : ("image" as const),
+        };
+      });
 
-    setSelectedImages((prev) => [...prev, ...newImages]);
+    setSelectedMedia((prev) => [...prev, ...newFiles]);
     e.target.value = "";
   };
 
-  const handleRemoveImage = (id: string) =>
-    setSelectedImages((prev) => {
-      const img = prev.find((i) => i.id === id);
-      if (img) URL.revokeObjectURL(img.preview);
+  const handleRemoveMedia = (id: string) =>
+    setSelectedMedia((prev) => {
+      const media = prev.find((i) => i.id === id);
+      if (media) URL.revokeObjectURL(media.preview);
       return prev.filter((i) => i.id !== id);
     });
 
-  const handleUpdateImageField = (
+  const handleUpdateMediaField = (
     id: string,
-    field: keyof ImagePreview,
+    field: keyof MediaPreview,
     value: any,
   ) =>
-    setSelectedImages((prev) =>
-      prev.map((img) => (img.id === id ? { ...img, [field]: value } : img)),
+    setSelectedMedia((prev) =>
+      prev.map((media) =>
+        media.id === id ? { ...media, [field]: value } : media,
+      ),
     );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,11 +95,13 @@ export default function UploadPage() {
 
     try {
       await Promise.all(
-        selectedImages.map(async (img) => {
+        selectedMedia.map(async (media) => {
           const formData = new FormData();
-          formData.append("caption", img.title);
-          formData.append("public", String(img.isPublic));
-          formData.append("image", img.file, img.file.name);
+          formData.append("caption", media.title);
+          formData.append("public", String(media.isPublic));
+
+          // Usar o mesmo campo "image" para ambos os tipos de mídia
+          formData.append("image", media.file, media.file.name);
 
           await api.post("/posts", formData, {
             headers: {
@@ -96,29 +114,43 @@ export default function UploadPage() {
 
       router.push("/");
     } catch (error) {
-      console.error("Erro ao enviar as fotos:", error);
+      console.error("Erro ao enviar os arquivos:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const filteredMedia = selectedMedia.filter((media) =>
+    activeTab === "images" ? media.type === "image" : media.type === "video",
+  );
+
   return (
     <>
       <Header />
       <main className="container mx-auto px-4 py-6 max-w-4xl">
-        <h1 className="text-2xl font-bold mb-6">Enviar Novas Fotos</h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Label htmlFor="photo">Selecionar Fotos</Label>
+        <h1 className="text-2xl font-bold mb-6">Enviar Novas Mídias</h1>
 
-          {selectedImages.length === 0 ? (
-            <div className="border-2 border-dashed rounded-lg p-8 text-center">
-              <ImageIcon className="h-10 w-10 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground mb-4">
-                Arraste e solte suas fotos ou clique para selecionar
-              </p>
+        <Tabs
+          defaultValue="images"
+          onValueChange={(value) => setActiveTab(value as "images" | "videos")}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <TabsList>
+              <TabsTrigger value="images" className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Imagens
+              </TabsTrigger>
+              <TabsTrigger value="videos" className="flex items-center gap-2">
+                <Film className="h-4 w-4" />
+                Vídeos
+              </TabsTrigger>
+            </TabsList>
+
+            <div>
               <Input
-                id="photo"
+                id="media"
                 type="file"
-                accept="image/*"
+                accept={activeTab === "images" ? "image/*" : "video/*"}
                 multiple
                 onChange={handleFileChange}
                 className="hidden"
@@ -126,82 +158,179 @@ export default function UploadPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => document.getElementById("photo")?.click()}
+                onClick={() => document.getElementById("media")?.click()}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Selecionar Arquivos
+                Selecionar {activeTab === "images" ? "Imagens" : "Vídeos"}
               </Button>
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {selectedImages.map((img) => (
-                  <div key={img.id} className="border rounded-lg p-4 space-y-4">
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
-                      <Image
-                        src={img.preview}
-                        alt="Preview"
-                        fill
-                        className="object-contain"
-                      />
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        onClick={() => handleRemoveImage(img.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Input
-                      value={img.title}
-                      onChange={(e) =>
-                        handleUpdateImageField(img.id, "title", e.target.value)
-                      }
-                      placeholder="Título"
-                      required
-                    />
-                    <Textarea
-                      value={img.description}
-                      onChange={(e) =>
-                        handleUpdateImageField(
-                          img.id,
-                          "description",
-                          e.target.value,
-                        )
-                      }
-                      placeholder="Descrição (opcional)"
-                      rows={2}
-                    />
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={img.isPublic}
-                        onCheckedChange={(checked) =>
-                          handleUpdateImageField(
-                            img.id,
-                            "isPublic",
-                            checked === true,
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <TabsContent value="images">
+              {filteredMedia.length === 0 ? (
+                <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                  <ImageIcon className="h-10 w-10 text-muted-foreground mb-2 mx-auto" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Arraste e solte suas imagens ou clique no botão acima para
+                    selecionar
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredMedia.map((media) => (
+                    <div
+                      key={media.id}
+                      className="border rounded-lg p-4 space-y-4"
+                    >
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
+                        <Image
+                          src={media.preview || "/placeholder.svg"}
+                          alt="Preview"
+                          fill
+                          className="object-contain"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2"
+                          onClick={() => handleRemoveMedia(media.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <Input
+                        value={media.title}
+                        onChange={(e) =>
+                          handleUpdateMediaField(
+                            media.id,
+                            "title",
+                            e.target.value,
                           )
                         }
+                        placeholder="Título"
+                        required
                       />
-                      <Label>Tornar pública</Label>
+                      <Textarea
+                        value={media.description}
+                        onChange={(e) =>
+                          handleUpdateMediaField(
+                            media.id,
+                            "description",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Descrição (opcional)"
+                        rows={2}
+                      />
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={media.isPublic}
+                          onCheckedChange={(checked) =>
+                            handleUpdateMediaField(
+                              media.id,
+                              "isPublic",
+                              checked === true,
+                            )
+                          }
+                        />
+                        <Label>Tornar pública</Label>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isSubmitting || !selectedImages.length}
-          >
-            {isSubmitting
-              ? "Enviando..."
-              : `Enviar ${selectedImages.length} foto(s)`}
-          </Button>
-        </form>
+            <TabsContent value="videos">
+              {filteredMedia.length === 0 ? (
+                <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                  <Film className="h-10 w-10 text-muted-foreground mb-2 mx-auto" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Arraste e solte seus vídeos ou clique no botão acima para
+                    selecionar
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredMedia.map((media) => (
+                    <div
+                      key={media.id}
+                      className="border rounded-lg p-4 space-y-4"
+                    >
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
+                        <video
+                          src={media.preview}
+                          className="w-full h-full object-contain"
+                          controls
+                          muted
+                          ref={videoRef}
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2"
+                          onClick={() => handleRemoveMedia(media.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <Input
+                        value={media.title}
+                        onChange={(e) =>
+                          handleUpdateMediaField(
+                            media.id,
+                            "title",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Título"
+                        required
+                      />
+                      <Textarea
+                        value={media.description}
+                        onChange={(e) =>
+                          handleUpdateMediaField(
+                            media.id,
+                            "description",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Descrição (opcional)"
+                        rows={2}
+                      />
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={media.isPublic}
+                          onCheckedChange={(checked) =>
+                            handleUpdateMediaField(
+                              media.id,
+                              "isPublic",
+                              checked === true,
+                            )
+                          }
+                        />
+                        <Label>Tornar pública</Label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {selectedMedia.length > 0 && (
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isSubmitting || !selectedMedia.length}
+              >
+                {isSubmitting
+                  ? "Enviando..."
+                  : `Enviar ${selectedMedia.length} arquivo(s)`}
+              </Button>
+            )}
+          </form>
+        </Tabs>
       </main>
     </>
   );

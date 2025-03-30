@@ -1,9 +1,7 @@
 "use client";
 
-import type React from "react";
-
 import { useState, useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +9,7 @@ import {
   Heart,
   MessageCircle,
   Send,
+  ArrowLeft,
   Calendar,
   Volume2,
   VolumeX,
@@ -20,7 +19,6 @@ import {
   Pencil,
   Trash2,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { formatDistanceToNow } from "date-fns";
@@ -29,6 +27,7 @@ import api from "@/lib/api";
 import { handleLike } from "@/lib/handleLike";
 import { handleAddComment } from "@/lib/handleAddComment";
 import { getImageUrl } from "@/lib/api";
+import Header from "@/components/header";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,16 +39,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EditPostDialog } from "@/components/edit-post-dialog";
+import Head from "next/head";
 
-interface PhotoModalProps {
-  postId: string;
-  onClose: () => void;
-  isOpen: boolean;
-}
-
-export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
+export default function PostPage() {
+  const { id } = useParams();
   const router = useRouter();
-  const pathname = usePathname();
   const { user, isAuthenticated } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   const [comment, setComment] = useState("");
@@ -71,8 +65,6 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
-  const [imageError, setImageError] = useState(false);
 
   // Verificar se o usuário atual é o proprietário do post
   const isOwner = user && photoData?.user?.id === user.id;
@@ -84,16 +76,10 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
     } else {
       document.title = "Mural de Fotos";
     }
-
-    return () => {
-      document.title = "Mural de Fotos";
-    };
   }, [photoData]);
 
   // Buscar dados completos da foto/vídeo
   useEffect(() => {
-    if (!isOpen || !postId) return;
-
     const fetchPhotoData = async () => {
       setIsLoading(true);
       try {
@@ -110,7 +96,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
           : undefined;
 
         // Buscar dados completos da foto/vídeo
-        const { data } = await api.get(`posts/${postId}`, config);
+        const { data } = await api.get(`posts/${id}`, config);
 
         setPhotoData(data);
         setComments(data.comments || []);
@@ -120,14 +106,12 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
         setIsVideo(!!data.isVideo);
 
         // Usar getImageUrl para ambos os tipos de mídia
-        const imageUrl = getImageUrl(postId);
-        console.log("URL da imagem:", imageUrl); // Log para depuração
-        setMediaUrl(imageUrl);
+        setMediaUrl(getImageUrl(id as string));
 
         // Verificar se o usuário atual curtiu a foto usando o endpoint específico
         if (isAuthenticated && savedToken) {
           try {
-            const likeResponse = await api.get(`posts/${postId}/liked`, {
+            const likeResponse = await api.get(`posts/${id}/liked`, {
               headers: {
                 Authorization: `Bearer ${savedToken}`,
                 accept: "*/*",
@@ -148,8 +132,10 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
       }
     };
 
-    fetchPhotoData();
-  }, [postId, isAuthenticated, isOpen]);
+    if (id) {
+      fetchPhotoData();
+    }
+  }, [id, isAuthenticated]);
 
   // Detectar quando a imagem carrega para determinar o aspect ratio
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -177,15 +163,17 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
     setIsSubmitting(true);
     try {
+      const currentPath = `/post/${id}`;
+
       // Verificar autenticação diretamente aqui
       if (!isAuthenticated) {
-        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
         return;
       }
 
       // Chamar a função utilitária sem passar o router
       const result = await handleAddComment(
-        postId,
+        id as string,
         comment,
         isAuthenticated,
         token,
@@ -221,14 +209,16 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
   };
 
   const handleLikeClick = async () => {
+    const currentPath = `/post/${id}`;
+
     // Verificar autenticação diretamente aqui
     if (!isAuthenticated) {
-      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
       return;
     }
 
     // Chamar a função utilitária sem passar o router
-    const result = await handleLike(postId, isAuthenticated, token);
+    const result = await handleLike(id as string, isAuthenticated, token);
 
     if (result) {
       const newLikedState = !liked;
@@ -302,14 +292,13 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
     setIsDeleting(true);
     try {
-      await api.delete(`/posts/${postId}`, {
+      await api.delete(`/posts/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      // Fechar o modal e redirecionar para a página inicial
-      onClose();
+      // Redirecionar para a página inicial
       router.push("/");
     } catch (error) {
       console.error("Erro ao excluir post:", error);
@@ -328,83 +317,36 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
   // Função para navegar para o perfil do usuário
   const navigateToUserProfile = () => {
     if (photoData?.user?.id) {
-      onClose();
       router.push(`/user/${photoData.user.id}`);
     }
   };
 
-  // Fechar o modal com a tecla ESC
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  // Impedir o scroll do body quando o modal estiver aberto
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  // Fechar o modal ao clicar fora do conteúdo
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      onClose();
-    }
+  // Função para voltar preservando a posição de rolagem
+  const handleBack = () => {
+    router.back();
   };
-
-  // Adicione esta função para lidar com erros de carregamento da imagem
-  const handleImageError = () => {
-    console.error("Erro ao carregar a imagem:", mediaUrl);
-    setImageError(true);
-  };
-
-  if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 md:p-8"
-      onClick={handleBackdropClick}
-    >
-      <div
-        ref={modalRef}
-        className="bg-background rounded-lg overflow-hidden w-full max-w-7xl max-h-[90vh] flex flex-col md:flex-row"
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: "calc(100vw - 32px)" }}
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70"
-          onClick={onClose}
-        >
-          <X className="h-5 w-5" />
+    <>
+      <Header />
+      <main className="container mx-auto px-4 py-6">
+        <Button variant="ghost" onClick={handleBack} className="mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
         </Button>
 
         {isLoading ? (
-          <div className="flex items-center justify-center min-h-[60vh] w-full">
+          <div className="flex items-center justify-center min-h-[60vh]">
             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : photoData ? (
-          <>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-6xl mx-auto">
             {/* Conteúdo da mídia - Imagem ou Vídeo */}
-            <div className="bg-black flex-1 flex items-center justify-center h-[50vh] md:h-[calc(90vh-32px)] md:max-h-[90vh]">
+            <div className="lg:col-span-3 bg-black rounded-lg overflow-hidden flex items-center justify-center">
               {isVideo ? (
                 <div
                   ref={videoContainerRef}
-                  className="relative w-full h-full flex items-center justify-center"
+                  className="relative w-full aspect-video flex items-center justify-center"
                 >
                   <video
                     ref={videoRef}
@@ -461,118 +403,87 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                   />
                 </div>
               ) : (
-                <div className="w-full h-full flex items-center justify-center relative">
-                  {/* Indicador de carregamento */}
-                  {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                      <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
-
-                  {imageError ? (
-                    <div className="flex flex-col items-center justify-center text-white p-4">
-                      <div className="text-red-500 mb-2">
-                        Erro ao carregar a imagem
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setImageError(false);
-                          // Tentar recarregar a imagem
-                          setMediaUrl(getImageUrl(postId));
-                        }}
-                      >
-                        Tentar novamente
-                      </Button>
-                    </div>
-                  ) : (
-                    <img
-                      src={mediaUrl || "/placeholder.svg"}
-                      alt={photoData.caption || "Foto"}
-                      className="max-w-full max-h-full object-contain"
-                      onLoad={handleImageLoad}
-                      onError={handleImageError}
-                      style={{ display: "block" }}
-                    />
-                  )}
+                <div className="w-full">
+                  <img
+                    src={mediaUrl || "/placeholder.svg"}
+                    alt={photoData.caption || "Foto"}
+                    className="w-full h-auto object-contain"
+                    onLoad={handleImageLoad}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Comentários e informações */}
-            <div className="flex flex-col border-t md:border-t-0 md:border-l w-full md:w-[450px] bg-background">
+            {/* Comentários e informações - Versão para desktop */}
+            <div className="lg:col-span-2 flex flex-col border rounded-lg overflow-hidden hidden lg:flex">
               {/* Cabeçalho */}
-              <div className="p-4 border-b">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex items-center space-x-2">
-                    <Avatar
-                      className="h-10 w-10 cursor-pointer"
+              <div className="p-4 border-b flex items-center space-x-2">
+                <Avatar
+                  className="h-10 w-10 cursor-pointer"
+                  onClick={navigateToUserProfile}
+                >
+                  <AvatarImage
+                    src={
+                      photoData.user?.avatarUrl ||
+                      "/placeholder.svg?height=40&width=40"
+                    }
+                    alt={photoData.user?.name || ""}
+                  />
+                  <AvatarFallback>
+                    {photoData.user?.name?.charAt(0).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <div className="flex items-center">
+                    <p
+                      className="text-sm font-medium cursor-pointer hover:underline"
                       onClick={navigateToUserProfile}
                     >
-                      <AvatarImage
-                        src={
-                          photoData.user?.avatarUrl ||
-                          "/placeholder.svg?height=40&width=40"
-                        }
-                        alt={photoData.user?.name || ""}
-                      />
-                      <AvatarFallback>
-                        {photoData.user?.name?.charAt(0).toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <p
-                          className="text-sm font-medium cursor-pointer hover:underline"
-                          onClick={navigateToUserProfile}
-                        >
-                          {photoData.user?.name || "Usuário"}
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="ml-2 h-7 px-2 text-xs text-primary"
-                          onClick={navigateToUserProfile}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Ver perfil
-                        </Button>
-                      </div>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {photoData.createdAt &&
-                          formatDistanceToNow(new Date(photoData.createdAt), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
-                      </div>
-                    </div>
+                      {photoData.user?.name || "Usuário"}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-2 h-7 px-2 text-xs text-primary"
+                      onClick={navigateToUserProfile}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Ver perfil
+                    </Button>
                   </div>
-
-                  {/* Botões de ação (apenas para o proprietário) - agora em uma linha separada em telas pequenas */}
-                  {isOwner && (
-                    <div className="flex items-center gap-2 sm:ml-auto mt-2 sm:mt-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center text-primary"
-                        onClick={() => setIsEditDialogOpen(true)}
-                      >
-                        <Pencil className="h-4 w-4 mr-1" />
-                        <span className="sm:inline">Editar</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center text-destructive hover:bg-destructive/10"
-                        onClick={() => setIsDeleteDialogOpen(true)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        <span className="sm:inline">Excluir</span>
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {photoData.createdAt &&
+                      formatDistanceToNow(new Date(photoData.createdAt), {
+                        addSuffix: true,
+                        locale: ptBR,
+                      })}
+                  </div>
                 </div>
+
+                {/* Botões de ação (apenas para o proprietário) */}
+                {isOwner && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center text-primary"
+                      onClick={() => setIsEditDialogOpen(true)}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center text-destructive hover:bg-destructive/10"
+                      onClick={() => setIsDeleteDialogOpen(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Excluir
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Descrição */}
@@ -583,7 +494,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
               )}
 
               {/* Lista de comentários */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[300px]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[400px]">
                 {comments.length === 0 ? (
                   <p className="text-center text-muted-foreground text-sm py-4">
                     Nenhum comentário ainda. Seja o primeiro a comentar!
@@ -593,12 +504,10 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                     <div key={comment.id} className="flex space-x-2">
                       <Avatar
                         className="h-6 w-6 cursor-pointer"
-                        onClick={() => {
-                          if (comment.user?.id) {
-                            onClose();
-                            router.push(`/user/${comment.user.id}`);
-                          }
-                        }}
+                        onClick={() =>
+                          comment.user?.id &&
+                          router.push(`/user/${comment.user.id}`)
+                        }
                       >
                         <AvatarImage
                           src={
@@ -615,12 +524,10 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                         <div className="flex items-baseline space-x-2">
                           <span
                             className="text-sm font-medium cursor-pointer hover:underline"
-                            onClick={() => {
-                              if (comment.user?.id) {
-                                onClose();
-                                router.push(`/user/${comment.user.id}`);
-                              }
-                            }}
+                            onClick={() =>
+                              comment.user?.id &&
+                              router.push(`/user/${comment.user.id}`)
+                            }
                           >
                             {comment.user?.name || "Usuário"}
                           </span>
@@ -684,16 +591,190 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                 </form>
               </div>
             </div>
-          </>
+
+            {/* Versão mobile - Comentários e informações */}
+            <div className="lg:hidden w-full border rounded-lg overflow-hidden">
+              {/* Cabeçalho */}
+              <div className="p-4 border-b">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Avatar
+                    className="h-8 w-8 cursor-pointer"
+                    onClick={navigateToUserProfile}
+                  >
+                    <AvatarImage
+                      src={
+                        photoData.user?.avatarUrl ||
+                        "/placeholder.svg?height=32&width=32"
+                      }
+                      alt={photoData.user?.name || ""}
+                    />
+                    <AvatarFallback>
+                      {photoData.user?.name?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <p
+                        className="text-sm font-medium cursor-pointer hover:underline"
+                        onClick={navigateToUserProfile}
+                      >
+                        {photoData.user?.name || "Usuário"}
+                      </p>
+                    </div>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3 mr-1" />
+                      {photoData.createdAt &&
+                        formatDistanceToNow(new Date(photoData.createdAt), {
+                          addSuffix: true,
+                          locale: ptBR,
+                        })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Descrição */}
+                {photoData.caption && (
+                  <p className="text-sm mb-3">{photoData.caption}</p>
+                )}
+
+                {/* Ações */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`flex items-center ${liked ? "text-red-500" : ""}`}
+                      onClick={handleLikeClick}
+                    >
+                      <Heart
+                        className={`h-5 w-5 mr-1 ${liked ? "fill-red-500" : ""}`}
+                      />
+                      {likesCount}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center"
+                    >
+                      <MessageCircle className="h-5 w-5 mr-1" />
+                      {photoData._count?.comments || 0}
+                    </Button>
+                  </div>
+
+                  {/* Botões de ação (apenas para o proprietário) */}
+                  {isOwner && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center text-primary"
+                        onClick={() => setIsEditDialogOpen(true)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Editar</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center text-destructive hover:bg-destructive/10"
+                        onClick={() => setIsDeleteDialogOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Excluir</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lista de comentários */}
+              <div className="p-4 space-y-4 max-h-[300px] overflow-y-auto">
+                <h3 className="font-medium text-sm mb-2">Comentários</h3>
+                {comments.length === 0 ? (
+                  <p className="text-center text-muted-foreground text-sm py-2">
+                    Nenhum comentário ainda. Seja o primeiro a comentar!
+                  </p>
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="flex space-x-2">
+                      <Avatar
+                        className="h-6 w-6 cursor-pointer"
+                        onClick={() =>
+                          comment.user?.id &&
+                          router.push(`/user/${comment.user.id}`)
+                        }
+                      >
+                        <AvatarImage
+                          src={
+                            comment.user?.avatarUrl ||
+                            "/placeholder.svg?height=24&width=24"
+                          }
+                          alt={comment.user?.name || ""}
+                        />
+                        <AvatarFallback>
+                          {comment.user?.name?.charAt(0).toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-baseline space-x-2">
+                          <span
+                            className="text-sm font-medium cursor-pointer hover:underline"
+                            onClick={() =>
+                              comment.user?.id &&
+                              router.push(`/user/${comment.user.id}`)
+                            }
+                          >
+                            {comment.user?.name || "Usuário"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {comment.createdAt &&
+                              formatDistanceToNow(new Date(comment.createdAt), {
+                                addSuffix: true,
+                                locale: ptBR,
+                              })}
+                          </span>
+                        </div>
+                        <p className="text-sm">{comment.content}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Formulário de comentário */}
+              <div className="p-4 border-t">
+                <form onSubmit={handleSubmitComment} className="flex space-x-2">
+                  <Textarea
+                    placeholder="Adicione um comentário..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    className="min-h-[60px] flex-1"
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={!comment.trim() || isSubmitting}
+                  >
+                    <Send className="h-4 w-4" />
+                    <span className="sr-only">Enviar comentário</span>
+                  </Button>
+                </form>
+              </div>
+            </div>
+          </div>
         ) : (
-          <div className="text-center py-12 w-full">
+          <div className="text-center py-12">
             <p className="text-muted-foreground">Post não encontrado</p>
-            <Button variant="outline" onClick={onClose} className="mt-4">
-              Fechar
+            <Button
+              variant="outline"
+              onClick={() => router.push("/")}
+              className="mt-4"
+            >
+              Voltar para o início
             </Button>
           </div>
         )}
-      </div>
+      </main>
 
       {/* Diálogo de confirmação para exclusão */}
       <AlertDialog
@@ -732,6 +813,6 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
           onPostUpdated={handlePostUpdated}
         />
       )}
-    </div>
+    </>
   );
 }

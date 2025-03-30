@@ -99,7 +99,7 @@ export default function Header() {
                       <Avatar className="h-8 w-8">
                         <AvatarImage
                           src={
-                            user?.avatar ||
+                            user?.avatarUrl ||
                             "/placeholder.svg?height=32&width=32"
                           }
                           alt={user?.name || "Avatar do usuário"}
@@ -190,7 +190,7 @@ export default function Header() {
                           <Avatar className="h-10 w-10">
                             <AvatarImage
                               src={
-                                user?.avatar ||
+                                user?.avatarUrl ||
                                 "/placeholder.svg?height=40&width=40"
                               }
                               alt={user?.name || "Avatar do usuário"}

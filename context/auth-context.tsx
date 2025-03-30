@@ -9,9 +9,13 @@ import {
 } from "react";
 import { jwtDecode } from "jwt-decode";
 
+// Atualizar a interface User para usar avatarUrl
 interface User {
   id: string;
   email: string;
+  name?: string;
+  bio?: string;
+  avatarUrl?: string;
 }
 
 interface JwtPayload {
@@ -27,6 +31,7 @@ interface AuthContextType {
   login: (token: string) => void;
   logout: () => void;
   loading: boolean;
+  updateProfile?: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -120,6 +125,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // Atualizar a função updateProfile para garantir que avatarUrl seja tratado corretamente
+  const updateProfile = (userData: Partial<User>) => {
+    if (user) {
+      // Garantir que avatarUrl seja preservado se estiver presente nos dados atualizados
+      const updatedUser = { ...user, ...userData };
+      console.log("Perfil atualizado:", updatedUser);
+      setUser(updatedUser);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -128,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         loading,
+        updateProfile,
       }}
     >
       {children}
