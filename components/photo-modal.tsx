@@ -73,6 +73,21 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detectar se é dispositivo móvel
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
 
   // Verificar se o usuário atual é o proprietário do post
   const isOwner = user && photoData?.user?.id === user.id;
@@ -386,32 +401,34 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 md:p-8"
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2 sm:p-4 md:p-8"
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
-        className="bg-background rounded-lg overflow-hidden w-full max-w-7xl max-h-[90vh] flex flex-col md:flex-row"
+        className="bg-background rounded-lg overflow-hidden w-full max-w-7xl max-h-[95vh] flex flex-col md:flex-row relative"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: "calc(100vw - 32px)" }}
+        style={{ maxWidth: "calc(100vw - 16px)" }}
       >
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70"
+          className="absolute top-2 right-2 z-50 bg-black/50 text-white hover:bg-black/70 h-8 w-8 md:top-4 md:right-4"
           onClick={onClose}
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         </Button>
 
         {isLoading ? (
-          <div className="flex items-center justify-center min-h-[60vh] w-full">
+          <div className="flex items-center justify-center min-h-[40vh] md:min-h-[60vh] w-full">
             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : photoData ? (
           <>
             {/* Conteúdo da mídia - Imagem ou Vídeo */}
-            <div className="bg-black flex-1 flex items-center justify-center h-[50vh] md:h-[calc(90vh-32px)] md:max-h-[90vh]">
+            <div
+              className={`bg-black ${isMobile ? "h-[40vh]" : "flex-1"} flex items-center justify-center ${isMobile ? "" : "md:h-[calc(95vh-32px)] md:max-h-[95vh]"}`}
+            >
               {isVideo ? (
                 <div
                   ref={videoContainerRef}
@@ -428,17 +445,17 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                   />
 
                   {/* Controles de vídeo personalizados */}
-                  <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-4 px-4">
-                    <div className="bg-black/60 rounded-full p-2 backdrop-blur-sm flex items-center gap-3">
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-2 px-2 md:gap-4 md:px-4">
+                    <div className="bg-black/60 rounded-full p-1 md:p-2 backdrop-blur-sm flex items-center gap-2 md:gap-3">
                       <button
                         onClick={togglePlay}
                         className="text-white hover:text-primary transition-colors"
                         aria-label={isPlaying ? "Pausar" : "Reproduzir"}
                       >
                         {isPlaying ? (
-                          <Pause className="h-5 w-5" />
+                          <Pause className="h-4 w-4 md:h-5 md:w-5" />
                         ) : (
-                          <Play className="h-5 w-5" />
+                          <Play className="h-4 w-4 md:h-5 md:w-5" />
                         )}
                       </button>
 
@@ -448,9 +465,9 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                         aria-label={isMuted ? "Ativar som" : "Desativar som"}
                       >
                         {isMuted ? (
-                          <VolumeX className="h-5 w-5" />
+                          <VolumeX className="h-4 w-4 md:h-5 md:w-5" />
                         ) : (
-                          <Volume2 className="h-5 w-5" />
+                          <Volume2 className="h-4 w-4 md:h-5 md:w-5" />
                         )}
                       </button>
 
@@ -459,7 +476,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                         className="text-white hover:text-primary transition-colors"
                         aria-label="Tela cheia"
                       >
-                        <Maximize className="h-5 w-5" />
+                        <Maximize className="h-4 w-4 md:h-5 md:w-5" />
                       </button>
                     </div>
                   </div>
@@ -482,11 +499,12 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
                   {imageError ? (
                     <div className="flex flex-col items-center justify-center text-white p-4">
-                      <div className="text-red-500 mb-2">
+                      <div className="text-red-500 mb-2 text-sm md:text-base">
                         Erro ao carregar a imagem
                       </div>
                       <Button
                         variant="outline"
+                        size={isMobile ? "sm" : "default"}
                         onClick={() => {
                           setImageError(false);
                           // Tentar recarregar a imagem
@@ -512,13 +530,15 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
             </div>
 
             {/* Comentários e informações */}
-            <div className="flex flex-col border-t md:border-t-0 md:border-l w-full md:w-[450px] bg-background">
+            <div
+              className={`flex flex-col border-t md:border-t-0 md:border-l w-full ${isMobile ? "h-[55vh]" : "md:w-[350px] lg:w-[450px]"} bg-background overflow-hidden`}
+            >
               {/* Cabeçalho */}
-              <div className="p-4 border-b">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="p-3 md:p-4 border-b">
+                <div className="flex flex-col gap-2">
                   <div className="flex items-center space-x-2">
                     <Avatar
-                      className="h-10 w-10 cursor-pointer"
+                      className="h-8 w-8 md:h-10 md:w-10 cursor-pointer flex-shrink-0"
                       onClick={navigateToUserProfile}
                     >
                       <AvatarImage
@@ -532,10 +552,10 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                         {photoData.user?.name?.charAt(0).toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center flex-wrap gap-1">
                         <p
-                          className="text-sm font-medium cursor-pointer hover:underline"
+                          className="text-sm font-medium cursor-pointer hover:underline truncate"
                           onClick={navigateToUserProfile}
                         >
                           {photoData.user?.name || "Usuário"}
@@ -543,7 +563,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="ml-2 h-7 px-2 text-xs text-primary"
+                          className="h-6 px-2 text-xs text-primary"
                           onClick={navigateToUserProfile}
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
@@ -551,36 +571,38 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                         </Button>
                       </div>
                       <div className="flex items-center text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {photoData.createdAt &&
-                          formatDistanceToNow(new Date(photoData.createdAt), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
+                        <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
+                        <span className="truncate">
+                          {photoData.createdAt &&
+                            formatDistanceToNow(new Date(photoData.createdAt), {
+                              addSuffix: true,
+                              locale: ptBR,
+                            })}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Botões de ação (apenas para o proprietário) - agora em uma linha separada em telas pequenas */}
+                  {/* Botões de ação (apenas para o proprietário) */}
                   {isOwner && (
-                    <div className="flex items-center gap-2 sm:ml-auto mt-2 sm:mt-0">
+                    <div className="flex items-center gap-2 mt-1">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex items-center text-primary"
+                        className="flex items-center text-primary h-8 px-2 text-xs flex-1"
                         onClick={() => setIsEditDialogOpen(true)}
                       >
-                        <Pencil className="h-4 w-4 mr-1" />
-                        <span className="sm:inline">Editar</span>
+                        <Pencil className="h-3 w-3 mr-1" />
+                        <span>Editar</span>
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex items-center text-destructive hover:bg-destructive/10"
+                        className="flex items-center text-destructive hover:bg-destructive/10 h-8 px-2 text-xs flex-1"
                         onClick={() => setIsDeleteDialogOpen(true)}
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        <span className="sm:inline">Excluir</span>
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        <span>Excluir</span>
                       </Button>
                     </div>
                   )}
@@ -589,22 +611,22 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
               {/* Descrição */}
               {photoData.caption && (
-                <div className="p-4 border-b">
-                  <p className="text-sm">{photoData.caption}</p>
+                <div className="p-3 md:p-4 border-b">
+                  <p className="text-sm break-words">{photoData.caption}</p>
                 </div>
               )}
 
               {/* Lista de comentários */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[300px]">
+              <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4">
                 {comments.length === 0 ? (
-                  <p className="text-center text-muted-foreground text-sm py-4">
+                  <p className="text-center text-muted-foreground text-xs md:text-sm py-4">
                     Nenhum comentário ainda. Seja o primeiro a comentar!
                   </p>
                 ) : (
                   comments.map((comment) => (
                     <div key={comment.id} className="flex space-x-2">
                       <Avatar
-                        className="h-6 w-6 cursor-pointer"
+                        className="h-6 w-6 cursor-pointer flex-shrink-0"
                         onClick={() => {
                           if (comment.user?.id) {
                             onClose();
@@ -623,10 +645,10 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                           {comment.user?.name?.charAt(0).toUpperCase() || "U"}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <div className="flex items-baseline space-x-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline space-x-2 flex-wrap">
                           <span
-                            className="text-sm font-medium cursor-pointer hover:underline"
+                            className="text-xs md:text-sm font-medium cursor-pointer hover:underline"
                             onClick={() => {
                               if (comment.user?.id) {
                                 onClose();
@@ -644,7 +666,9 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                               })}
                           </span>
                         </div>
-                        <p className="text-sm">{comment.content}</p>
+                        <p className="text-xs md:text-sm break-words">
+                          {comment.content}
+                        </p>
                       </div>
                     </div>
                   ))
@@ -652,25 +676,25 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
               </div>
 
               {/* Ações e formulário de comentário */}
-              <div className="p-4 border-t">
-                <div className="flex items-center space-x-4 mb-4">
+              <div className="p-3 md:p-4 border-t">
+                <div className="flex items-center space-x-4 mb-3 md:mb-4">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={`flex items-center ${liked ? "text-red-500" : ""}`}
+                    className={`flex items-center h-8 px-2 text-xs ${liked ? "text-red-500" : ""}`}
                     onClick={handleLikeClick}
                   >
                     <Heart
-                      className={`h-5 w-5 mr-1 ${liked ? "fill-red-500" : ""}`}
+                      className={`h-4 w-4 mr-1 ${liked ? "fill-red-500" : ""}`}
                     />
                     {likesCount} {likesCount === 1 ? "Like" : "Likes"}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center"
+                    className="flex items-center h-8 px-2 text-xs"
                   >
-                    <MessageCircle className="h-5 w-5 mr-1" />
+                    <MessageCircle className="h-4 w-4 mr-1" />
                     {photoData._count?.comments || 0}{" "}
                     {photoData._count?.comments === 1
                       ? "Comentário"
@@ -683,14 +707,15 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
                     placeholder="Adicione um comentário..."
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    className="min-h-[60px] flex-1"
+                    className="min-h-[50px] md:min-h-[60px] flex-1 text-xs md:text-sm"
                   />
                   <Button
                     type="submit"
                     size="icon"
+                    className="h-8 w-8 md:h-10 md:w-10"
                     disabled={!comment.trim() || isSubmitting}
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-3 w-3 md:h-4 md:w-4" />
                     <span className="sr-only">Enviar comentário</span>
                   </Button>
                 </form>
@@ -712,7 +737,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[90vw] md:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir post</AlertDialogTitle>
             <AlertDialogDescription>
@@ -720,7 +745,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
               desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <AlertDialogCancel disabled={isDeleting}>
               Cancelar
             </AlertDialogCancel>
