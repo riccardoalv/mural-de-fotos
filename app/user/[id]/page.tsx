@@ -32,6 +32,7 @@ export default function UserProfilePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!userId) return;
     const fetchUserData = async () => {
       setIsLoading(true);
       try {
