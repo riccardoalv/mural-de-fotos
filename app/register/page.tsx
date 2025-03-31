@@ -82,7 +82,11 @@ export default function RegisterPage() {
                 <Input
                   id="cpf"
                   value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
+                  onChange={(e) => {
+                    const onlyNumbers = e.target.value.replace(/\D/g, "");
+                    setCpf(onlyNumbers);
+                  }}
+                  maxLength={11}
                   required
                 />
               </div>

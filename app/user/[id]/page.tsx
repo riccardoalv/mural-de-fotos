@@ -178,7 +178,7 @@ export default function UserProfilePage() {
     <>
       <Header />
       <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8">
+        <div className="flex flex-col items-center gap-4 mb-10 text-center">
           <Avatar className="h-24 w-24">
             <AvatarImage
               src={user.avatarUrl || "/placeholder.svg?height=96&width=96"}
@@ -192,7 +192,9 @@ export default function UserProfilePage() {
           <div>
             <h1 className="text-2xl font-bold">{user.name}</h1>
             {user.bio && (
-              <p className="text-muted-foreground mt-2">{user.bio}</p>
+              <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
+                {user.bio}
+              </p>
             )}
             <div className="flex gap-4 mt-4">
               <div className="text-sm">
