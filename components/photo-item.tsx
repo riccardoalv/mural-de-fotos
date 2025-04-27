@@ -97,10 +97,10 @@ export function PhotoItem({
 
   // Add error handling for image loading
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.error("Erro ao carregar imagem:", mediaUrl);
+    console.error("Erro ao carregar a imagem:", mediaUrl);
     setIsLoading(false);
-    // You could set a fallback image here if needed
-    e.currentTarget.src = "/placeholder.svg?height=400&width=400";
+    // Set a fallback image
+    e.currentTarget.src = "/abstract-geometric-shapes.png";
   };
 
   // Valor padrão para aspect ratio até que a mídia carregue

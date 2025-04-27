@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://computacao.unir.br/mural/api",
+  baseURL: "http://localhost:4000",
   headers: {
     Accept: "*/*",
     "Content-Type": "application/json",
@@ -10,22 +10,19 @@ const api = axios.create({
 
 export default api;
 
-// Modify the getImageUrl function to handle URL parameters more securely
+// Update the getImageUrl function to use the new endpoint
 export const getImageUrl = (postId: string) => {
   // Use URL constructor to ensure proper URL formatting
   try {
     // Create a proper URL object to handle parameters correctly
-    const baseUrl =
-      api.defaults.baseURL || "http://computacao.unir.br/mural/api";
-    const url = new URL(`${baseUrl}/posts/${postId}/download-image`);
-
-    // Log for debugging
+    const baseUrl = api.defaults.baseURL || "http://localhost:4000";
+    const url = new URL(`${baseUrl}/posts/download/${postId}`);
 
     return url.toString();
   } catch (error) {
     console.error("Erro ao gerar URL da imagem:", error);
     // Fallback to direct string concatenation if URL constructor fails
-    return `${api.defaults.baseURL}/posts/${postId}/download-image`;
+    return `${api.defaults.baseURL}/posts/download/${postId}`;
   }
 };
 
@@ -46,4 +43,26 @@ export const getAuthenticatedImageUrl = (postId: string) => {
   }
 
   return url;
+};
+
+export const searchPosts = async (term: string, page = 1, limit = 24) => {
+  try {
+    const token = localStorage.getItem("token");
+    const config = token
+      ? {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+      : undefined;
+
+    const response = await api.get(
+      `/posts/search?term=${encodeURIComponent(term)}&page=${page}&limit=${limit}`,
+      config,
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Erro ao buscar posts:", error);
+    throw error;
+  }
 };

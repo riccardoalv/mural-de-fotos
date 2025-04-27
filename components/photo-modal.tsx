@@ -392,7 +392,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
     console.error("Erro ao carregar a imagem:", mediaUrl);
     setImageError(true);
     // Set a fallback image
-    e.currentTarget.src = "/placeholder.svg?height=400&width=400";
+    e.currentTarget.src = "/abstract-geometric-shapes.png";
   };
 
   if (!isOpen) return null;

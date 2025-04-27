@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import api from "@/lib/api";
+import api, { searchPosts } from "@/lib/api";
 import { PhotoItem } from "@/components/photo-item";
 import { SkeletonLoader } from "@/components/skeleton-loader";
 import { useAuth } from "@/context/auth-context";
@@ -10,12 +10,14 @@ import type { FilterOptions } from "@/components/filters";
 
 interface PhotoGridProps {
   filters?: FilterOptions;
-  useDirectLinks?: boolean; // Nova prop para controlar o comportamento
+  useDirectLinks?: boolean;
+  useSearchEndpoint?: boolean; // New prop to control whether to use search endpoint
 }
 
 export default function PhotoGrid({
   filters,
   useDirectLinks = false,
+  useSearchEndpoint = false,
 }: PhotoGridProps) {
   const isClient = useIsClient();
   const { user } = useAuth();
@@ -29,6 +31,7 @@ export default function PhotoGrid({
   const observer = useRef<IntersectionObserver>();
   const [tokenLoaded, setTokenLoaded] = useState(false);
   const [columnCount, setColumnCount] = useState(3);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Atualizar o número de colunas com base no tamanho da tela
   useEffect(() => {
@@ -56,17 +59,28 @@ export default function PhotoGrid({
 
   // Referência para controlar se os filtros mudaram
   const filtersRef = useRef(filters);
+  const searchEndpointRef = useRef(useSearchEndpoint);
 
-  // Reset photos when filters change
+  // Reset photos when filters change or when switching between regular and search endpoints
   useEffect(() => {
-    // Verificar se os filtros realmente mudaram
-    if (JSON.stringify(filtersRef.current) !== JSON.stringify(filters)) {
+    // Store current values for comparison
+    const currentFilters = JSON.stringify(filters);
+    const prevFilters = JSON.stringify(filtersRef.current);
+
+    // Only reset if something meaningful changed
+    if (
+      prevFilters !== currentFilters ||
+      searchEndpointRef.current !== useSearchEndpoint
+    ) {
       setPhotos([]);
       setPage(1);
       setHasMore(true);
+
+      // Update refs with new values
       filtersRef.current = filters;
+      searchEndpointRef.current = useSearchEndpoint;
     }
-  }, [filters]);
+  }, [filters, useSearchEndpoint]);
 
   useEffect(() => {
     if (!isClient) return;
@@ -86,52 +100,89 @@ export default function PhotoGrid({
 
     const fetchPhotos = async () => {
       setLoading(true);
+      setSearchError(null);
+
       try {
-        // Construct URL with filters
-        let url = `posts?limit=24&page=${page}`;
+        // Use search endpoint if useSearchEndpoint is true and we have a search term
+        if (useSearchEndpoint && filters?.search) {
+          try {
+            const searchResult = await searchPosts(filters.search, page, 24);
+            const newPhotos = searchResult.data || [];
+            const meta = searchResult.meta || {};
 
-        if (filters) {
-          if (filters.order) url += `&order=${filters.order}`;
-          if (filters.orderBy) url += `&orderBy=${filters.orderBy}`;
-          if (filters.userId && filters.userId !== "all")
-            url += `&userId=${filters.userId}`;
-          if (filters.search)
-            url += `&search=${encodeURIComponent(filters.search)}`;
-        }
+            // Verificar se estamos na página 1 (reset) ou adicionando mais fotos
+            if (page === 1) {
+              setPhotos(newPhotos);
+            } else {
+              // Adicionar apenas fotos que ainda não existem no array
+              const existingIds = new Set(photos.map((p) => p.id));
+              const uniqueNewPhotos = newPhotos.filter(
+                (p: any) => !existingIds.has(p.id),
+              );
 
-        const config =
-          isAuthenticated && token
-            ? {
-              headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
+              if (uniqueNewPhotos.length > 0) {
+                setPhotos((prev) => [...prev, ...uniqueNewPhotos]);
+              }
             }
-            : undefined;
 
-        const response = await api.get(url, config);
-        const newPhotos = response.data.data || [];
-        const meta = response.data.meta || {};
-
-        // Verificar se estamos na página 1 (reset) ou adicionando mais fotos
-        if (page === 1) {
-          setPhotos(newPhotos);
-        } else {
-          // Adicionar apenas fotos que ainda não existem no array
-          const existingIds = new Set(photos.map((p) => p.id));
-          const uniqueNewPhotos = newPhotos.filter(
-            (p: any) => !existingIds.has(p.id),
-          );
-
-          if (uniqueNewPhotos.length > 0) {
-            setPhotos((prev) => [...prev, ...uniqueNewPhotos]);
+            // Verificar se há mais páginas para carregar
+            const hasMorePages = meta.currentPage < meta.lastPage;
+            setHasMore(hasMorePages);
+          } catch (error) {
+            console.error(
+              "Erro ao buscar fotos com o termo de pesquisa:",
+              error,
+            );
+            setSearchError(
+              "Não foi possível realizar a pesquisa. Tente novamente.",
+            );
+            setHasMore(false);
           }
-        }
+        } else {
+          // Construct URL with filters for regular endpoint
+          let url = `posts?limit=24&page=${page}`;
 
-        // Verificar se há mais páginas para carregar
-        const hasMorePages = meta.currentPage < meta.lastPage;
-        setHasMore(hasMorePages);
+          if (filters) {
+            if (filters.order) url += `&order=${filters.order}`;
+            if (filters.orderBy) url += `&orderBy=${filters.orderBy}`;
+            if (filters.userId && filters.userId !== "all")
+              url += `&userId=${filters.userId}`;
+          }
+
+          const config =
+            isAuthenticated && token
+              ? {
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+              : undefined;
+
+          const response = await api.get(url, config);
+          const newPhotos = response.data.data || [];
+          const meta = response.data.meta || {};
+
+          // Verificar se estamos na página 1 (reset) ou adicionando mais fotos
+          if (page === 1) {
+            setPhotos(newPhotos);
+          } else {
+            // Adicionar apenas fotos que ainda não existem no array
+            const existingIds = new Set(photos.map((p) => p.id));
+            const uniqueNewPhotos = newPhotos.filter(
+              (p: any) => !existingIds.has(p.id),
+            );
+
+            if (uniqueNewPhotos.length > 0) {
+              setPhotos((prev) => [...prev, ...uniqueNewPhotos]);
+            }
+          }
+
+          // Verificar se há mais páginas para carregar
+          const hasMorePages = meta.currentPage < meta.lastPage;
+          setHasMore(hasMorePages);
+        }
       } catch (error) {
         console.error("Erro ao buscar fotos:", error);
         setHasMore(false);
@@ -150,8 +201,8 @@ export default function PhotoGrid({
     filters,
     loading,
     hasMore,
-    photos,
     isFetchingMore,
+    useSearchEndpoint,
   ]);
 
   // Iniciar a primeira busca quando o componente montar
@@ -220,6 +271,23 @@ export default function PhotoGrid({
 
   return (
     <div className="container mx-auto px-4 py-4">
+      {searchError && (
+        <div className="bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200 p-4 rounded-lg mb-6">
+          {searchError}
+        </div>
+      )}
+
+      {useSearchEndpoint &&
+        filters?.search &&
+        photos.length === 0 &&
+        !loading && (
+          <div className="text-center py-6 mb-4">
+            <p className="text-muted-foreground">
+              Buscando por "{filters.search}"...
+            </p>
+          </div>
+        )}
+
       <div
         className="ordered-masonry-grid"
         style={{
@@ -244,11 +312,15 @@ export default function PhotoGrid({
 
       {!loading && photos.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Nenhuma foto encontrada</p>
+          <p className="text-muted-foreground">
+            {useSearchEndpoint && filters?.search
+              ? `Nenhuma foto encontrada para "${filters.search}"`
+              : "Nenhuma foto encontrada"}
+          </p>
         </div>
       )}
 
-      {!loading && photos.length === 0 && (
+      {loading && photos.length === 0 && (
         <SkeletonLoader columnCount={columnCount} />
       )}
 
