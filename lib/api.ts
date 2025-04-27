@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:4000",
+  baseURL: "http://computacao.unir.br/mural/api",
   headers: {
     Accept: "*/*",
     "Content-Type": "application/json",
@@ -15,7 +15,8 @@ export const getImageUrl = (postId: string) => {
   // Use URL constructor to ensure proper URL formatting
   try {
     // Create a proper URL object to handle parameters correctly
-    const baseUrl = api.defaults.baseURL || "http://localhost:4000";
+    const baseUrl =
+      api.defaults.baseURL || "http://computacao.unir.br/mural/api";
     const url = new URL(`${baseUrl}/posts/download/${postId}`);
 
     return url.toString();
