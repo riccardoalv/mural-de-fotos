@@ -1,69 +1,71 @@
-import axios from "axios";
+"use client";
+
+import axios, { type AxiosRequestConfig } from "axios";
+
+const DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 const api = axios.create({
-  baseURL: "http://computacao.unir.br/mural/api",
+  baseURL: DEFAULT_BASE_URL,
   headers: {
     Accept: "*/*",
-    "Content-Type": "application/json",
+    // "Content-Type": "application/json",
   },
 });
 
 export default api;
 
-// Update the getImageUrl function to use the new endpoint
-export const getImageUrl = (postId: string) => {
-  // Use URL constructor to ensure proper URL formatting
-  try {
-    // Create a proper URL object to handle parameters correctly
-    const baseUrl =
-      api.defaults.baseURL || "http://computacao.unir.br/mural/api";
-    const url = new URL(`${baseUrl}/posts/download/${postId}`);
-
-    return url.toString();
-  } catch (error) {
-    console.error("Erro ao gerar URL da imagem:", error);
-    // Fallback to direct string concatenation if URL constructor fails
-    return `${api.defaults.baseURL}/posts/download/${postId}`;
-  }
+const getAuthToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("token");
 };
 
-// Add a function to get authenticated image URL if needed
-export const getAuthenticatedImageUrl = (postId: string) => {
-  const token = localStorage.getItem("token");
-  const url = getImageUrl(postId);
+export const uploadImage = async (
+  file: File,
+  folder?: string,
+): Promise<string> => {
+  const token = getAuthToken();
 
-  // If we have a token, append it as a query parameter
+  const formData = new FormData();
+  formData.append("image", file);
+  if (folder) {
+    formData.append("folder", folder);
+  }
+
+  const config: AxiosRequestConfig = {
+    headers: {},
+  };
+
   if (token) {
-    try {
-      const urlObj = new URL(url);
-      urlObj.searchParams.append("token", token);
-      return urlObj.toString();
-    } catch (error) {
-      console.error("Erro ao adicionar token à URL:", error);
-    }
+    config.headers = {
+      ...config.headers,
+      Authorization: `Bearer ${token}`,
+    };
   }
 
-  return url;
+  const response = await api.post<{ key: string; url: string }>(
+    "/upload",
+    formData,
+    config,
+  );
+
+  return response.data.url;
 };
 
-export const searchPosts = async (term: string, page = 1, limit = 24) => {
-  try {
-    const token = localStorage.getItem("token");
-    const config = token
-      ? {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-      : undefined;
+export const searchPosts = async <T = unknown>(
+  term: string,
+  page = 1,
+  limit = 24,
+): Promise<T> => {
+  const token = getAuthToken();
 
-    const response = await api.get(
-      `/posts/search?term=${encodeURIComponent(term)}&page=${page}&limit=${limit}`,
-      config,
-    );
-    return response.data;
-  } catch (error) {
-    console.error("Erro ao buscar posts:", error);
-    throw error;
+  const config: AxiosRequestConfig = {
+    params: { term, page, limit },
+  };
+
+  if (token) {
+    config.headers = { Authorization: `Bearer ${token}` };
   }
+
+  const response = await api.get<T>("/posts/search", config);
+  return response.data;
 };

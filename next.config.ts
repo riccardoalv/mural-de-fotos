@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ["computacao.unir.br"],
+    domains: [
+      "computacao.unir.br",
+      "mural-de-fotos.s3.us-east-2.amazonaws.com",
+    ],
   },
   basePath: "/mural",
 };

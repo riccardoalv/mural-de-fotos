@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +28,6 @@ import { ptBR } from "date-fns/locale";
 import api from "@/lib/api";
 import { handleLike } from "@/lib/handleLike";
 import { handleAddComment } from "@/lib/handleAddComment";
-import { getImageUrl } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,249 +46,81 @@ interface PhotoModalProps {
   isOpen: boolean;
 }
 
-export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { user, isAuthenticated } = useAuth();
-  const [token, setToken] = useState<string | null>(null);
-  const [comment, setComment] = useState("");
-  const [comments, setComments] = useState<any[]>([]);
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [photoData, setPhotoData] = useState<any>(null);
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-  const [isVertical, setIsVertical] = useState(false);
-  const [isVideo, setIsVideo] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+interface PostUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+}
+
+interface PostCounts {
+  likes?: number;
+  comments?: number;
+}
+
+interface PostComment {
+  id: string;
+  content: string;
+  createdAt: string;
+  user?: PostUser | null;
+}
+
+interface PhotoPost {
+  id: string;
+  caption?: string | null;
+  createdAt?: string;
+  imageUrl?: string | null;
+  isVideo?: boolean;
+  user?: PostUser | null;
+  _count?: PostCounts;
+  comments?: PostComment[];
+}
+
+interface MediaViewerProps {
+  mediaUrl: string;
+  isVideo: boolean;
+  alt: string;
+  isMobile: boolean;
+}
+
+function MediaViewer({ mediaUrl, isVideo, alt, isMobile }: MediaViewerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
-  // Detectar se é dispositivo móvel
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-
-    return () => {
-      window.removeEventListener("resize", checkMobile);
-    };
-  }, []);
-
-  // Verificar se o usuário atual é o proprietário do post
-  const isOwner = user && photoData?.user?.id === user.id;
-
-  // Atualizar o título da página
-  useEffect(() => {
-    if (photoData?.caption) {
-      document.title = `${photoData.caption} | Mural de Fotos`;
-    } else {
-      document.title = "Mural de Fotos";
-    }
-
-    return () => {
-      document.title = "Mural de Fotos";
-    };
-  }, [photoData]);
-
-  // Buscar dados completos da foto/vídeo
-  useEffect(() => {
-    if (!isOpen || !postId) return;
-
-    const fetchPhotoData = async () => {
-      setIsLoading(true);
-      try {
-        const savedToken = localStorage.getItem("token");
-        setToken(savedToken);
-
-        // Configurar headers com token se disponível
-        const config = savedToken
-          ? {
-            headers: {
-              Authorization: `Bearer ${savedToken}`,
-            },
-          }
-          : undefined;
-
-        // Buscar dados completos da foto/vídeo
-        const { data } = await api.get(`posts/${postId}`, config);
-
-        setPhotoData(data);
-        setComments(data.comments || []);
-        setLikesCount(data._count?.likes || 0);
-
-        // Verificar se é um vídeo com base na propriedade isVideo do post
-        setIsVideo(!!data.isVideo);
-
-        try {
-          // Usar getImageUrl para ambos os tipos de mídia
-          const imageUrl = getImageUrl(postId);
-          setMediaUrl(imageUrl);
-        } catch (error) {
-          // Fallback to direct URL construction
-          setMediaUrl(`${api.defaults.baseURL}/posts/${postId}/download-image`);
-        }
-
-        // Verificar se o usuário atual curtiu a foto usando o endpoint específico
-        if (isAuthenticated && savedToken) {
-          try {
-            const likeResponse = await api.get(`posts/${postId}/liked`, {
-              headers: {
-                Authorization: `Bearer ${savedToken}`,
-                accept: "*/*",
-              },
-            });
-
-            // Se retornar qualquer objeto JSON, significa que o usuário deu like
-            setLiked(!!likeResponse.data);
-          } catch (error) {
-            console.error("Erro ao verificar like:", error);
-            setLiked(false);
-          }
-        }
-      } catch (error) {
-        console.error("Erro ao buscar dados da mídia:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPhotoData();
-  }, [postId, isAuthenticated, isOpen]);
-
-  // Detectar quando a imagem carrega para determinar o aspect ratio
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    if (img.naturalWidth && img.naturalHeight) {
-      const ratio = img.naturalWidth / img.naturalHeight;
-      setAspectRatio(ratio);
-      setIsVertical(ratio < 0.8);
-    }
-  };
-
-  // Detectar quando o vídeo carrega para determinar o aspect ratio
-  const handleVideoLoad = () => {
-    if (videoRef.current) {
-      const video = videoRef.current;
-      const ratio = video.videoWidth / video.videoHeight;
-      setAspectRatio(ratio);
-      setIsVertical(ratio < 0.8);
-    }
-  };
-
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!comment.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      // Verificar autenticação diretamente aqui
-      if (!isAuthenticated) {
-        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
-        return;
-      }
-
-      // Chamar a função utilitária sem passar o router
-      const result = await handleAddComment(
-        postId,
-        comment,
-        isAuthenticated,
-        token,
-      );
-
-      if (result) {
-        // Adicionar o novo comentário à lista
-        const newComment = {
-          id: result.id,
-          content: comment,
-          createdAt: new Date().toISOString(),
-          user: {
-            id: user?.id,
-            name: user?.email, // Usar email como fallback para o nome
-            avatarUrl: null,
-          },
-        };
-        setComments((prev) => [newComment, ...prev]);
-        setComment("");
-
-        // Atualizar contagem de comentários
-        setPhotoData((prev) => ({
-          ...prev,
-          _count: {
-            ...prev._count,
-            comments: (prev._count?.comments || 0) + 1,
-          },
-        }));
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleLikeClick = async () => {
-    // Verificar autenticação diretamente aqui
-    if (!isAuthenticated) {
-      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
-      return;
-    }
-
-    // Chamar a função utilitária sem passar o router
-    const result = await handleLike(postId, isAuthenticated, token);
-
-    if (result) {
-      const newLikedState = !liked;
-      setLiked(newLikedState);
-      setLikesCount((prev) => (newLikedState ? prev + 1 : prev - 1));
-    }
-  };
-
-  // Controles de vídeo
   const togglePlay = () => {
     if (!videoRef.current) return;
-
     if (isPlaying) {
       videoRef.current.pause();
     } else {
       videoRef.current.play();
     }
-    setIsPlaying(!isPlaying);
+    setIsPlaying((prev) => !prev);
   };
 
   const toggleMute = () => {
     if (!videoRef.current) return;
     videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
+    setIsMuted((prev) => !prev);
   };
 
   const toggleFullscreen = () => {
     if (!videoContainerRef.current) return;
-
     if (!isFullscreen) {
       if (videoContainerRef.current.requestFullscreen) {
         videoContainerRef.current.requestFullscreen();
       }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
     }
-    setIsFullscreen(!isFullscreen);
+    setIsFullscreen((prev) => !prev);
   };
 
-  // Monitorar eventos de vídeo
   useEffect(() => {
     const videoElement = videoRef.current;
     if (!videoElement) return;
@@ -297,7 +128,6 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     const handleEnded = () => setIsPlaying(false);
-
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
@@ -315,10 +145,567 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
     };
   }, []);
 
-  // Função para excluir o post
+  const handleImageLoad = () => {
+    setIsLoading(false);
+  };
+
+  const handleVideoLoad = () => {
+    setIsLoading(false);
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    setImageError(true);
+    setIsLoading(false);
+    e.currentTarget.src = "/abstract-geometric-shapes.png";
+  };
+
+  const handleRetry = () => {
+    setImageError(false);
+    setIsLoading(true);
+    setRetryKey((prev) => prev + 1);
+  };
+
+  return (
+    <div
+      className={`bg-black ${
+        isMobile ? "h-[40vh]" : "flex-1"
+      } flex items-center justify-center ${
+        isMobile ? "" : "md:h-[calc(95vh-32px)] md:max-h-[95vh]"
+      }`}
+    >
+      {isVideo ? (
+        <div
+          key={retryKey}
+          ref={videoContainerRef}
+          className="relative w-full h-full flex items-center justify-center"
+        >
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          <video
+            ref={videoRef}
+            src={mediaUrl}
+            className="max-h-full max-w-full"
+            controls={false}
+            muted={isMuted}
+            playsInline
+            onLoadedMetadata={handleVideoLoad}
+            onClick={togglePlay}
+          />
+          <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-2 px-2 md:gap-4 md:px-4">
+            <div className="bg-black/60 rounded-full p-1 md:p-2 backdrop-blur-sm flex items-center gap-2 md:gap-3">
+              <button
+                onClick={togglePlay}
+                className="text-white hover:text-primary transition-colors"
+                aria-label={isPlaying ? "Pausar" : "Reproduzir"}
+              >
+                {isPlaying ? (
+                  <Pause className="h-4 w-4 md:h-5 md:w-5" />
+                ) : (
+                  <Play className="h-4 w-4 md:h-5 md:w-5" />
+                )}
+              </button>
+              <button
+                onClick={toggleMute}
+                className="text-white hover:text-primary transition-colors"
+                aria-label={isMuted ? "Ativar som" : "Desativar som"}
+              >
+                {isMuted ? (
+                  <VolumeX className="h-4 w-4 md:h-5 md:w-5" />
+                ) : (
+                  <Volume2 className="h-4 w-4 md:h-5 md:w-5" />
+                )}
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="text-white hover:text-primary transition-colors"
+                aria-label="Tela cheia"
+              >
+                <Maximize className="h-4 w-4 md:h-5 md:w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center relative">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {imageError ? (
+            <div className="flex flex-col items-center justify-center text-white p-4">
+              <div className="text-red-500 mb-2 text-sm md:text-base">
+                Erro ao carregar a imagem
+              </div>
+              <Button
+                variant="outline"
+                size={isMobile ? "sm" : "default"}
+                onClick={handleRetry}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          ) : (
+            <img
+              key={retryKey}
+              src={mediaUrl || "/placeholder.svg"}
+              alt={alt || "Foto"}
+              className="max-w-full max-h-full object-contain"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              style={{ display: "block" }}
+              crossOrigin="anonymous"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface HeaderSectionProps {
+  post: PhotoPost;
+  isOwner: boolean;
+  isMobile: boolean;
+  onNavigateToUser: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function HeaderSection({
+  post,
+  isOwner,
+  isMobile,
+  onNavigateToUser,
+  onEdit,
+  onDelete,
+}: HeaderSectionProps) {
+  return (
+    <div className="p-3 md:p-4 border-b">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center space-x-2">
+          <Avatar
+            className="h-8 w-8 md:h-10 md:w-10 cursor-pointer flex-shrink-0"
+            onClick={onNavigateToUser}
+          >
+            <AvatarImage
+              src={
+                post.user?.avatarUrl || "/placeholder.svg?height=40&width=40"
+              }
+              alt={post.user?.name || ""}
+            />
+            <AvatarFallback>
+              {post.user?.name?.charAt(0).toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center flex-wrap gap-1">
+              <p
+                className="text-sm font-medium cursor-pointer hover:underline truncate"
+                onClick={onNavigateToUser}
+              >
+                {post.user?.name || "Usuário"}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-primary"
+                onClick={onNavigateToUser}
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Ver perfil
+              </Button>
+            </div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">
+                {post.createdAt &&
+                  formatDistanceToNow(new Date(post.createdAt), {
+                    addSuffix: true,
+                    locale: ptBR,
+                  })}
+              </span>
+            </div>
+          </div>
+        </div>
+        {isOwner && (
+          <div className="flex items-center gap-2 mt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center text-primary h-8 px-2 text-xs flex-1"
+              onClick={onEdit}
+            >
+              <Pencil className="h-3 w-3 mr-1" />
+              <span>Editar</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center text-destructive hover:bg-destructive/10 h-8 px-2 text-xs flex-1"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              <span>Excluir</span>
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface CommentsListProps {
+  comments: PostComment[];
+  onCloseModal: () => void;
+  onNavigateToUser: (userId: string) => void;
+}
+
+function CommentsList({
+  comments,
+  onCloseModal,
+  onNavigateToUser,
+}: CommentsListProps) {
+  if (comments.length === 0) {
+    return (
+      <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4">
+        <p className="text-center text-muted-foreground text-xs md:text-sm py-4">
+          Nenhum comentário ainda. Seja o primeiro a comentar!
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4">
+      {comments.map((comment) => (
+        <div key={comment.id} className="flex space-x-2">
+          <Avatar
+            className="h-6 w-6 cursor-pointer flex-shrink-0"
+            onClick={() => {
+              if (comment.user?.id) {
+                onCloseModal();
+                onNavigateToUser(comment.user.id);
+              }
+            }}
+          >
+            <AvatarImage
+              src={
+                comment.user?.avatarUrl || "/placeholder.svg?height=24&width=24"
+              }
+              alt={comment.user?.name || ""}
+            />
+            <AvatarFallback>
+              {comment.user?.name?.charAt(0).toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline space-x-2 flex-wrap">
+              <span
+                className="text-xs md:text-sm font-medium cursor-pointer hover:underline"
+                onClick={() => {
+                  if (comment.user?.id) {
+                    onCloseModal();
+                    onNavigateToUser(comment.user.id);
+                  }
+                }}
+              >
+                {comment.user?.name || "Usuário"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {comment.createdAt &&
+                  formatDistanceToNow(new Date(comment.createdAt), {
+                    addSuffix: true,
+                    locale: ptBR,
+                  })}
+              </span>
+            </div>
+            <p className="text-xs md:text-sm break-words">{comment.content}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface ActionsSectionProps {
+  liked: boolean;
+  likesCount: number;
+  commentsCount: number;
+  comment: string;
+  isSubmitting: boolean;
+  onLikeClick: () => void;
+  onCommentChange: (value: string) => void;
+  onSubmitComment: (e: React.FormEvent) => void;
+}
+
+function ActionsSection({
+  liked,
+  likesCount,
+  commentsCount,
+  comment,
+  isSubmitting,
+  onLikeClick,
+  onCommentChange,
+  onSubmitComment,
+}: ActionsSectionProps) {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comment.trim() || isSubmitting) return;
+    onSubmitComment(e);
+  };
+
+  return (
+    <div className="p-3 md:p-4 border-t">
+      <div className="flex items-center space-x-4 mb-3 md:mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`flex items-center h-8 px-2 text-xs ${
+            liked ? "text-red-500" : ""
+          }`}
+          onClick={onLikeClick}
+        >
+          <Heart className={`h-4 w-4 mr-1 ${liked ? "fill-red-500" : ""}`} />
+          {likesCount} {likesCount === 1 ? "Like" : "Likes"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex items-center h-8 px-2 text-xs"
+        >
+          <MessageCircle className="h-4 w-4 mr-1" />
+          {commentsCount} {commentsCount === 1 ? "Comentário" : "Comentários"}
+        </Button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex space-x-2">
+        <Textarea
+          placeholder="Adicione um comentário..."
+          value={comment}
+          onChange={(e) => onCommentChange(e.target.value)}
+          className="min-h-[50px] md:min-h-[60px] flex-1 text-xs md:text-sm"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (!comment.trim() || isSubmitting) return;
+              onSubmitComment(e);
+            }
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="h-8 w-8 md:h-10 md:w-10"
+          disabled={!comment.trim() || isSubmitting}
+        >
+          <Send className="h-3 w-3 md:h-4 md:w-4" />
+          <span className="sr-only">Enviar comentário</span>
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+interface DeletePostDialogProps {
+  open: boolean;
+  isDeleting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}
+
+function DeletePostDialog({
+  open,
+  isDeleting,
+  onOpenChange,
+  onConfirm,
+}: DeletePostDialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="max-w-[90vw] md:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir post</AlertDialogTitle>
+          <AlertDialogDescription>
+            Tem certeza que deseja excluir este post? Esta ação não pode ser
+            desfeita.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeleting ? "Excluindo..." : "Excluir"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user, isAuthenticated } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  const [comment, setComment] = useState("");
+  const [comments, setComments] = useState<PostComment[]>([]);
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [photoData, setPhotoData] = useState<PhotoPost | null>(null);
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [isVideo, setIsVideo] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  const isOwner = user && photoData?.user?.id === user.id;
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (photoData?.caption) {
+      document.title = `${photoData.caption} | Mural de Fotos`;
+    } else {
+      document.title = "Mural de Fotos";
+    }
+    return () => {
+      document.title = "Mural de Fotos";
+    };
+  }, [photoData]);
+
+  useEffect(() => {
+    if (!isOpen || !postId) return;
+
+    const fetchPhotoData = async () => {
+      setIsLoading(true);
+      try {
+        const savedToken = localStorage.getItem("token");
+        setToken(savedToken || null);
+
+        const config = savedToken
+          ? {
+              headers: {
+                Authorization: `Bearer ${savedToken}`,
+              },
+            }
+          : undefined;
+
+        const { data } = await api.get<PhotoPost>(`posts/${postId}`, config);
+
+        setPhotoData(data);
+        setComments(data.comments || []);
+        const likes = data._count?.likes ?? 0;
+        setLikesCount(likes);
+        setIsVideo(!!data.isVideo);
+        setMediaUrl(data.imageUrl || "");
+
+        if (isAuthenticated && savedToken) {
+          try {
+            const likeResponse = await api.get(`posts/${postId}/liked`, {
+              headers: {
+                Authorization: `Bearer ${savedToken}`,
+                accept: "*/*",
+              },
+            });
+            setLiked(!!likeResponse.data);
+          } catch {
+            setLiked(false);
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao buscar dados da mídia:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPhotoData();
+  }, [postId, isAuthenticated, isOpen]);
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comment.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      if (!isAuthenticated) {
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        return;
+      }
+
+      const result = await handleAddComment(
+        postId,
+        comment,
+        isAuthenticated,
+        token,
+      );
+
+      if (result) {
+        const newComment: PostComment = {
+          id: result.id,
+          content: comment,
+          createdAt: new Date().toISOString(),
+          user: {
+            id: user?.id as string,
+            name: user?.name || "Usuário",
+            avatarUrl: user?.avatarUrl,
+          },
+        };
+        setComments((prev) => [newComment, ...prev]);
+        setComment("");
+        setPhotoData((prev) =>
+          prev
+            ? {
+                ...prev,
+                _count: {
+                  ...prev._count,
+                  comments: (prev._count?.comments || 0) + 1,
+                },
+              }
+            : prev,
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleLikeClick = async () => {
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    const result = await handleLike(postId, isAuthenticated, token);
+
+    if (result) {
+      const newLikedState = !liked;
+      setLiked(newLikedState);
+      setLikesCount((prev) => (newLikedState ? prev + 1 : prev - 1));
+    }
+  };
+
   const handleDeletePost = async () => {
     if (!token) return;
-
     setIsDeleting(true);
     try {
       await api.delete(`/posts/${postId}`, {
@@ -326,8 +713,6 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
           Authorization: `Bearer ${token}`,
         },
       });
-
-      // Fechar o modal e redirecionar para a página inicial
       onClose();
       router.push("/");
     } catch (error) {
@@ -338,61 +723,47 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
     }
   };
 
-  // Função para atualizar os dados do post após a edição
-  const handlePostUpdated = (updatedPost: any) => {
+  const handlePostUpdated = (updatedPost: PhotoPost) => {
     setPhotoData(updatedPost);
+    setMediaUrl(updatedPost.imageUrl || "");
     setIsEditDialogOpen(false);
   };
 
-  // Função para navegar para o perfil do usuário
-  const navigateToUserProfile = () => {
-    if (photoData?.user?.id) {
+  const navigateToUserProfile = useCallback(
+    (userId?: string) => {
+      if (!userId) return;
       onClose();
-      router.push(`/user/${photoData.user.id}`);
-    }
-  };
+      router.push(`/user/${userId}`);
+    },
+    [onClose, router],
+  );
 
-  // Fechar o modal com a tecla ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Impedir o scroll do body quando o modal estiver aberto
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-
     return () => {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
 
-  // Fechar o modal ao clicar fora do conteúdo
   const handleBackdropClick = (e: React.MouseEvent) => {
-    // Não fechar se o modal de edição estiver aberto
     if (isEditDialogOpen) return;
-
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
       onClose();
     }
-  };
-
-  // Adicione esta função para lidar com erros de carregamento da imagem
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.error("Erro ao carregar a imagem:", mediaUrl);
-    setImageError(true);
-    // Set a fallback image
-    e.currentTarget.src = "/abstract-geometric-shapes.png";
   };
 
   if (!isOpen) return null;
@@ -419,305 +790,55 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
         {isLoading ? (
           <div className="flex items-center justify-center min-h-[40vh] md:min-h-[60vh] w-full">
-            <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : photoData ? (
           <>
-            {/* Conteúdo da mídia - Imagem ou Vídeo */}
+            <MediaViewer
+              mediaUrl={mediaUrl}
+              isVideo={isVideo}
+              alt={photoData.caption || "Foto"}
+              isMobile={isMobile}
+            />
+
             <div
-              className={`bg-black ${isMobile ? "h-[40vh]" : "flex-1"} flex items-center justify-center ${isMobile ? "" : "md:h-[calc(95vh-32px)] md:max-h-[95vh]"}`}
+              className={`flex flex-col border-t md:border-t-0 md:border-l w-full ${
+                isMobile ? "h-[55vh]" : "md:w-[350px] lg:w-[450px]"
+              } bg-background overflow-hidden`}
             >
-              {isVideo ? (
-                <div
-                  ref={videoContainerRef}
-                  className="relative w-full h-full flex items-center justify-center"
-                >
-                  <video
-                    ref={videoRef}
-                    src={mediaUrl}
-                    className="max-h-full max-w-full"
-                    controls={false}
-                    muted={isMuted}
-                    playsInline
-                    onLoadedMetadata={handleVideoLoad}
-                  />
+              <HeaderSection
+                post={photoData}
+                isOwner={!!isOwner}
+                isMobile={isMobile}
+                onNavigateToUser={() =>
+                  navigateToUserProfile(photoData.user?.id)
+                }
+                onEdit={() => setIsEditDialogOpen(true)}
+                onDelete={() => setIsDeleteDialogOpen(true)}
+              />
 
-                  {/* Controles de vídeo personalizados */}
-                  <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-2 px-2 md:gap-4 md:px-4">
-                    <div className="bg-black/60 rounded-full p-1 md:p-2 backdrop-blur-sm flex items-center gap-2 md:gap-3">
-                      <button
-                        onClick={togglePlay}
-                        className="text-white hover:text-primary transition-colors"
-                        aria-label={isPlaying ? "Pausar" : "Reproduzir"}
-                      >
-                        {isPlaying ? (
-                          <Pause className="h-4 w-4 md:h-5 md:w-5" />
-                        ) : (
-                          <Play className="h-4 w-4 md:h-5 md:w-5" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={toggleMute}
-                        className="text-white hover:text-primary transition-colors"
-                        aria-label={isMuted ? "Ativar som" : "Desativar som"}
-                      >
-                        {isMuted ? (
-                          <VolumeX className="h-4 w-4 md:h-5 md:w-5" />
-                        ) : (
-                          <Volume2 className="h-4 w-4 md:h-5 md:w-5" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={toggleFullscreen}
-                        className="text-white hover:text-primary transition-colors"
-                        aria-label="Tela cheia"
-                      >
-                        <Maximize className="h-4 w-4 md:h-5 md:w-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Overlay para play/pause ao clicar no vídeo */}
-                  <div
-                    className="absolute inset-0 cursor-pointer"
-                    onClick={togglePlay}
-                    aria-hidden="true"
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center relative">
-                  {/* Indicador de carregamento */}
-                  {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                      <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
-
-                  {imageError ? (
-                    <div className="flex flex-col items-center justify-center text-white p-4">
-                      <div className="text-red-500 mb-2 text-sm md:text-base">
-                        Erro ao carregar a imagem
-                      </div>
-                      <Button
-                        variant="outline"
-                        size={isMobile ? "sm" : "default"}
-                        onClick={() => {
-                          setImageError(false);
-                          // Tentar recarregar a imagem
-                          setMediaUrl(getImageUrl(postId));
-                        }}
-                      >
-                        Tentar novamente
-                      </Button>
-                    </div>
-                  ) : (
-                    <img
-                      src={mediaUrl || "/placeholder.svg"}
-                      alt={photoData.caption || "Foto"}
-                      className="max-w-full max-h-full object-contain"
-                      onLoad={handleImageLoad}
-                      onError={handleImageError}
-                      style={{ display: "block" }}
-                      crossOrigin="anonymous"
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Comentários e informações */}
-            <div
-              className={`flex flex-col border-t md:border-t-0 md:border-l w-full ${isMobile ? "h-[55vh]" : "md:w-[350px] lg:w-[450px]"} bg-background overflow-hidden`}
-            >
-              {/* Cabeçalho */}
-              <div className="p-3 md:p-4 border-b">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center space-x-2">
-                    <Avatar
-                      className="h-8 w-8 md:h-10 md:w-10 cursor-pointer flex-shrink-0"
-                      onClick={navigateToUserProfile}
-                    >
-                      <AvatarImage
-                        src={
-                          photoData.user?.avatarUrl ||
-                          "/placeholder.svg?height=40&width=40"
-                        }
-                        alt={photoData.user?.name || ""}
-                      />
-                      <AvatarFallback>
-                        {photoData.user?.name?.charAt(0).toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center flex-wrap gap-1">
-                        <p
-                          className="text-sm font-medium cursor-pointer hover:underline truncate"
-                          onClick={navigateToUserProfile}
-                        >
-                          {photoData.user?.name || "Usuário"}
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs text-primary"
-                          onClick={navigateToUserProfile}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Ver perfil
-                        </Button>
-                      </div>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
-                        <span className="truncate">
-                          {photoData.createdAt &&
-                            formatDistanceToNow(new Date(photoData.createdAt), {
-                              addSuffix: true,
-                              locale: ptBR,
-                            })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Botões de ação (apenas para o proprietário) */}
-                  {isOwner && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center text-primary h-8 px-2 text-xs flex-1"
-                        onClick={() => setIsEditDialogOpen(true)}
-                      >
-                        <Pencil className="h-3 w-3 mr-1" />
-                        <span>Editar</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center text-destructive hover:bg-destructive/10 h-8 px-2 text-xs flex-1"
-                        onClick={() => setIsDeleteDialogOpen(true)}
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        <span>Excluir</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Descrição */}
               {photoData.caption && (
                 <div className="p-3 md:p-4 border-b">
                   <p className="text-sm break-words">{photoData.caption}</p>
                 </div>
               )}
 
-              {/* Lista de comentários */}
-              <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4">
-                {comments.length === 0 ? (
-                  <p className="text-center text-muted-foreground text-xs md:text-sm py-4">
-                    Nenhum comentário ainda. Seja o primeiro a comentar!
-                  </p>
-                ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="flex space-x-2">
-                      <Avatar
-                        className="h-6 w-6 cursor-pointer flex-shrink-0"
-                        onClick={() => {
-                          if (comment.user?.id) {
-                            onClose();
-                            router.push(`/user/${comment.user.id}`);
-                          }
-                        }}
-                      >
-                        <AvatarImage
-                          src={
-                            comment.user?.avatarUrl ||
-                            "/placeholder.svg?height=24&width=24"
-                          }
-                          alt={comment.user?.name || ""}
-                        />
-                        <AvatarFallback>
-                          {comment.user?.name?.charAt(0).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline space-x-2 flex-wrap">
-                          <span
-                            className="text-xs md:text-sm font-medium cursor-pointer hover:underline"
-                            onClick={() => {
-                              if (comment.user?.id) {
-                                onClose();
-                                router.push(`/user/${comment.user.id}`);
-                              }
-                            }}
-                          >
-                            {comment.user?.name || "Usuário"}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {comment.createdAt &&
-                              formatDistanceToNow(new Date(comment.createdAt), {
-                                addSuffix: true,
-                                locale: ptBR,
-                              })}
-                          </span>
-                        </div>
-                        <p className="text-xs md:text-sm break-words">
-                          {comment.content}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <CommentsList
+                comments={comments}
+                onCloseModal={onClose}
+                onNavigateToUser={(id) => navigateToUserProfile(id)}
+              />
 
-              {/* Ações e formulário de comentário */}
-              <div className="p-3 md:p-4 border-t">
-                <div className="flex items-center space-x-4 mb-3 md:mb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`flex items-center h-8 px-2 text-xs ${liked ? "text-red-500" : ""}`}
-                    onClick={handleLikeClick}
-                  >
-                    <Heart
-                      className={`h-4 w-4 mr-1 ${liked ? "fill-red-500" : ""}`}
-                    />
-                    {likesCount} {likesCount === 1 ? "Like" : "Likes"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex items-center h-8 px-2 text-xs"
-                  >
-                    <MessageCircle className="h-4 w-4 mr-1" />
-                    {photoData._count?.comments || 0}{" "}
-                    {photoData._count?.comments === 1
-                      ? "Comentário"
-                      : "Comentários"}
-                  </Button>
-                </div>
-
-                <form onSubmit={handleSubmitComment} className="flex space-x-2">
-                  <Textarea
-                    placeholder="Adicione um comentário..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    className="min-h-[50px] md:min-h-[60px] flex-1 text-xs md:text-sm"
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    className="h-8 w-8 md:h-10 md:w-10"
-                    disabled={!comment.trim() || isSubmitting}
-                  >
-                    <Send className="h-3 w-3 md:h-4 md:w-4" />
-                    <span className="sr-only">Enviar comentário</span>
-                  </Button>
-                </form>
-              </div>
+              <ActionsSection
+                liked={liked}
+                likesCount={likesCount}
+                commentsCount={photoData._count?.comments || 0}
+                comment={comment}
+                isSubmitting={isSubmitting}
+                onLikeClick={handleLikeClick}
+                onCommentChange={setComment}
+                onSubmitComment={handleSubmitComment}
+              />
             </div>
           </>
         ) : (
@@ -730,36 +851,14 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
         )}
       </div>
 
-      {/* Diálogo de confirmação para exclusão */}
-      <AlertDialog
+      <DeletePostDialog
         open={isDeleteDialogOpen}
+        isDeleting={isDeleting}
         onOpenChange={setIsDeleteDialogOpen}
-      >
-        <AlertDialogContent className="max-w-[90vw] md:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir post</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este post? Esta ação não pode ser
-              desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel disabled={isDeleting}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeletePost}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Excluindo..." : "Excluir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={handleDeletePost}
+      />
 
-      {/* Diálogo de edição de post */}
-      {isEditDialogOpen && (
+      {isEditDialogOpen && photoData && (
         <div onClick={(e) => e.stopPropagation()}>
           <EditPostDialog
             post={photoData}
