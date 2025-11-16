@@ -169,7 +169,9 @@ export default function UploadPage() {
 
     const filesArray = Array.from(e.target.files);
 
-    const defaultTitle = new Date().toLocaleDateString("pt-BR");
+    const defaultTitle = new Date().toLocaleDateString("pt-BR", {
+      dateStyle: "medium",
+    });
 
     const newMedia = filesArray
       .filter((file) => {
