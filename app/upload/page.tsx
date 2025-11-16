@@ -169,6 +169,8 @@ export default function UploadPage() {
 
     const filesArray = Array.from(e.target.files);
 
+    const defaultTitle = new Date().toLocaleDateString("pt-BR");
+
     const newMedia = filesArray
       .filter((file) => {
         const isImage = file.type.startsWith("image/");
@@ -181,7 +183,7 @@ export default function UploadPage() {
           id: Math.random().toString(36).slice(2),
           file,
           preview: URL.createObjectURL(file),
-          title: file.name.split(".")[0],
+          title: defaultTitle,
           description: "",
           isPublic: false,
           type: isVideo ? "video" : "image",
