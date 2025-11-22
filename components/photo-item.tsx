@@ -4,19 +4,20 @@ import type React from "react";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Heart, MessageCircle, User, Play } from "lucide-react";
+import { Heart, MessageCircle, User, Play, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PhotoCounts {
   likes?: number;
   comments?: number;
+  Media?: number;
 }
 
 interface PhotoUser {
   name?: string;
 }
 
-interface Photo {
+export interface Photo {
   id: string;
   caption?: string;
   isVideo?: boolean;
@@ -58,6 +59,7 @@ export function PhotoItem({
 
   const likeCount = photo._count?.likes ?? 0;
   const commentCount = photo._count?.comments ?? 0;
+  const mediaCount = photo._count?.Media ?? 0;
   const caption = photo.caption || "Sem título";
   const userName = photo.user?.name || "Usuário";
 
@@ -74,7 +76,7 @@ export function PhotoItem({
     } catch {
       setMediaUrl("");
     }
-  }, [photo.id, photo.isVideo]);
+  }, [photo.id, photo.isVideo, photo.imageUrl]);
 
   const updateOrientation = useCallback((ratio: number) => {
     setAspectRatio(ratio);
@@ -203,6 +205,10 @@ export function PhotoItem({
               <div className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1">
                 <MessageCircle className="h-3 w-3" />
                 <span>{commentCount}</span>
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1">
+                <ImageIcon className="h-3 w-3" />
+                <span>{mediaCount}</span>
               </div>
             </div>
 

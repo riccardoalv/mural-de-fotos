@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,8 @@ import {
   Trash2,
   ExternalLink,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { formatDistanceToNow } from "date-fns";
@@ -65,15 +67,24 @@ interface PostComment {
   user?: PostUser | null;
 }
 
+interface PostMedia {
+  id: string;
+  order: number;
+  imageUrl: string;
+  isVideo: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  postId?: string;
+}
+
 interface PhotoPost {
   id: string;
   caption?: string | null;
   createdAt?: string;
-  imageUrl?: string | null;
-  isVideo?: boolean;
   user?: PostUser | null;
   _count?: PostCounts;
   comments?: PostComment[];
+  Media?: PostMedia[];
 }
 
 interface MediaViewerProps {
@@ -81,9 +92,26 @@ interface MediaViewerProps {
   isVideo: boolean;
   alt: string;
   isMobile: boolean;
+  hasPrev?: boolean;
+  hasNext?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
+  currentIndex?: number;
+  total?: number;
 }
 
-function MediaViewer({ mediaUrl, isVideo, alt, isMobile }: MediaViewerProps) {
+function MediaViewer({
+  mediaUrl,
+  isVideo,
+  alt,
+  isMobile,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
+  currentIndex,
+  total,
+}: MediaViewerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -92,6 +120,19 @@ function MediaViewer({ mediaUrl, isVideo, alt, isMobile }: MediaViewerProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+
+  // 🔁 sempre que trocar de mídia, resetamos o loading e o erro
+  useEffect(() => {
+    setIsLoading(true);
+    setImageError(false);
+    setRetryKey((prev) => prev + 1);
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+  }, [mediaUrl, isVideo, currentIndex]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -171,19 +212,55 @@ function MediaViewer({ mediaUrl, isVideo, alt, isMobile }: MediaViewerProps) {
         isMobile ? "h-[40vh]" : "flex-1"
       } flex items-center justify-center ${
         isMobile ? "" : "md:h-[calc(95vh-32px)] md:max-h-[95vh]"
-      }`}
+      } relative`}
     >
+      {/* contador tipo "1 / 3" */}
+      {typeof currentIndex === "number" &&
+        typeof total === "number" &&
+        total > 1 && (
+          <div className="absolute top-3 right-3 z-20 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
+            {currentIndex + 1} / {total}
+          </div>
+        )}
+
+      {/* setas esquerda/direita */}
+      {hasPrev && onPrev && (
+        <button
+          type="button"
+          onClick={onPrev}
+          className="absolute left-2 md:left-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          aria-label="Mídia anterior"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
+
+      {hasNext && onNext && (
+        <button
+          type="button"
+          onClick={onNext}
+          className="absolute right-2 md:right-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          aria-label="Próxima mídia"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* overlay de loading (spinner) */}
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30">
+          <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
       {isVideo ? (
         <div
           key={retryKey}
           ref={videoContainerRef}
-          className="relative w-full h-full flex items-center justify-center"
+          className={`relative w-full h-full flex items-center justify-center transition-opacity duration-300 ${
+            isLoading ? "opacity-0" : "opacity-100"
+          }`}
         >
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
           <video
             ref={videoRef}
             src={mediaUrl}
@@ -229,12 +306,11 @@ function MediaViewer({ mediaUrl, isVideo, alt, isMobile }: MediaViewerProps) {
           </div>
         </div>
       ) : (
-        <div className="w-full h-full flex items-center justify-center relative">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
+        <div
+          className={`w-full h-full flex items-center justify-center relative transition-opacity duration-300 ${
+            isLoading ? "opacity-0" : "opacity-100"
+          }`}
+        >
           {imageError ? (
             <div className="flex flex-col items-center justify-center text-white p-4">
               <div className="text-red-500 mb-2 text-sm md:text-base">
@@ -560,13 +636,12 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [photoData, setPhotoData] = useState<PhotoPost | null>(null);
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [isVideo, setIsVideo] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
   const isOwner = user && photoData?.user?.id === user.id;
 
@@ -615,8 +690,6 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
         setComments(data.comments || []);
         const likes = data._count?.likes ?? 0;
         setLikesCount(likes);
-        setIsVideo(!!data.isVideo);
-        setMediaUrl(data.imageUrl || "");
 
         if (isAuthenticated && savedToken) {
           try {
@@ -630,6 +703,17 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
           } catch {
             setLiked(false);
           }
+        }
+
+        // define mídia inicial: order = 1, senão índice 0
+        const mediaList = (data.Media || [])
+          .slice()
+          .sort((a, b) => a.order - b.order);
+        if (mediaList.length > 0) {
+          const idx = mediaList.findIndex((m) => m.order === 1);
+          setCurrentMediaIndex(idx >= 0 ? idx : 0);
+        } else {
+          setCurrentMediaIndex(0);
         }
       } catch (error) {
         console.error("Erro ao buscar dados da mídia:", error);
@@ -725,7 +809,7 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
 
   const handlePostUpdated = (updatedPost: PhotoPost) => {
     setPhotoData(updatedPost);
-    setMediaUrl(updatedPost.imageUrl || "");
+    // se quiser, pode reajustar currentMediaIndex aqui com base no updatedPost.Media
     setIsEditDialogOpen(false);
   };
 
@@ -743,10 +827,23 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
       if (e.key === "Escape") {
         onClose();
       }
+      // opcional: navegação por teclado entre mídias
+      if (e.key === "ArrowRight") {
+        setCurrentMediaIndex((prev) => {
+          const mediaList = (photoData?.Media || [])
+            .slice()
+            .sort((a, b) => a.order - b.order);
+          if (!mediaList.length) return prev;
+          return Math.min(prev + 1, mediaList.length - 1);
+        });
+      }
+      if (e.key === "ArrowLeft") {
+        setCurrentMediaIndex((prev) => Math.max(prev - 1, 0));
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, photoData?.Media]);
 
   useEffect(() => {
     if (isOpen) {
@@ -765,6 +862,29 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
       onClose();
     }
   };
+
+  const mediaList = useMemo(() => {
+    return (photoData?.Media || []).slice().sort((a, b) => a.order - b.order);
+  }, [photoData]);
+
+  const hasMedia = mediaList.length > 0;
+  const currentMedia =
+    hasMedia && currentMediaIndex >= 0 && currentMediaIndex < mediaList.length
+      ? mediaList[currentMediaIndex]
+      : null;
+
+  const hasPrev = hasMedia && currentMediaIndex > 0;
+  const hasNext = hasMedia && currentMediaIndex < mediaList.length - 1;
+
+  const handleNextMedia = useCallback(() => {
+    if (!hasNext) return;
+    setCurrentMediaIndex((prev) => Math.min(prev + 1, mediaList.length - 1));
+  }, [hasNext, mediaList.length]);
+
+  const handlePrevMedia = useCallback(() => {
+    if (!hasPrev) return;
+    setCurrentMediaIndex((prev) => Math.max(prev - 1, 0));
+  }, [hasPrev]);
 
   if (!isOpen) return null;
 
@@ -794,12 +914,24 @@ export function PhotoModal({ postId, onClose, isOpen }: PhotoModalProps) {
           </div>
         ) : photoData ? (
           <>
-            <MediaViewer
-              mediaUrl={mediaUrl}
-              isVideo={isVideo}
-              alt={photoData.caption || "Foto"}
-              isMobile={isMobile}
-            />
+            {currentMedia ? (
+              <MediaViewer
+                mediaUrl={currentMedia.imageUrl}
+                isVideo={currentMedia.isVideo}
+                alt={photoData.caption || "Foto"}
+                isMobile={isMobile}
+                hasPrev={hasPrev}
+                hasNext={hasNext}
+                onPrev={handlePrevMedia}
+                onNext={handleNextMedia}
+                currentIndex={currentMediaIndex}
+                total={mediaList.length}
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-black text-white">
+                Nenhuma mídia para este post.
+              </div>
+            )}
 
             <div
               className={`flex flex-col border-t md:border-t-0 md:border-l w-full ${

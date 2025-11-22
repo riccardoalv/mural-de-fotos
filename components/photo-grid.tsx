@@ -14,6 +14,55 @@ interface PhotoGridProps {
   useSearchEndpoint?: boolean;
 }
 
+type ApiMedia = {
+  id: string;
+  order: number;
+  imageUrl: string;
+  isVideo: boolean;
+};
+
+type ApiPost = {
+  id: string;
+  caption?: string;
+  public: boolean;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+  Media?: ApiMedia[];
+  likes?: unknown[];
+  user?: {
+    id: string;
+    avatarUrl: string | null;
+    name: string;
+  };
+  _count?: {
+    likes: number;
+    comments: number;
+  };
+};
+
+function mapPostsToPhotos(posts: ApiPost[]): Photo[] {
+  return posts
+    .map<Photo | null>((post) => {
+      if (!post.Media || post.Media.length === 0) return null;
+
+      // pega a mídia com order = 1, se não tiver, usa a primeira
+      const cover = post.Media.find((m) => m.order === 1) ?? post.Media[0];
+
+      if (!cover) return null;
+
+      return {
+        id: post.id,
+        caption: post.caption,
+        isVideo: cover.isVideo,
+        imageUrl: cover.imageUrl,
+        _count: post._count,
+        user: post.user ? { name: post.user.name } : undefined,
+      };
+    })
+    .filter((p): p is Photo => p !== null);
+}
+
 const PAGE_SIZE = 24;
 
 function useColumnCount(isClient: boolean) {
@@ -105,77 +154,51 @@ export default function PhotoGrid({
       setSearchError(null);
 
       try {
-        if (useSearchEndpoint && filters?.search) {
-          const searchResult = await searchPosts(
-            filters.search,
-            page,
-            PAGE_SIZE,
-          );
-          const newPhotos: Photo[] = searchResult.data || [];
-          const meta = searchResult.meta || {};
+        const params: Record<string, string | number> = {
+          limit: PAGE_SIZE,
+          page,
+        };
 
-          if (page === 1) {
-            setPhotos(newPhotos);
-          } else {
-            setPhotos((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const uniqueNewPhotos = newPhotos.filter(
-                (p) => !existingIds.has(p.id),
-              );
-              return uniqueNewPhotos.length > 0
-                ? [...prev, ...uniqueNewPhotos]
-                : prev;
-            });
-          }
-
-          const hasMorePages = meta.currentPage < meta.lastPage;
-          setHasMore(hasMorePages);
-        } else {
-          const params: Record<string, string | number> = {
-            limit: PAGE_SIZE,
-            page,
-          };
-
-          if (filters?.order) params.order = filters.order;
-          if (filters?.orderBy) params.orderBy = filters.orderBy;
-          if (filters?.userId && filters.userId !== "all") {
-            params.userId = filters.userId;
-          }
-
-          const headers =
-            isAuthenticated && token
-              ? {
-                  Accept: "application/json",
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                }
-              : undefined;
-
-          const response = await api.get("/posts", {
-            headers,
-            params,
-          });
-
-          const newPhotos: Photo[] = response.data.data || [];
-          const meta = response.data.meta || {};
-
-          if (page === 1) {
-            setPhotos(newPhotos);
-          } else {
-            setPhotos((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const uniqueNewPhotos = newPhotos.filter(
-                (p) => !existingIds.has(p.id),
-              );
-              return uniqueNewPhotos.length > 0
-                ? [...prev, ...uniqueNewPhotos]
-                : prev;
-            });
-          }
-
-          const hasMorePages = meta.currentPage < meta.lastPage;
-          setHasMore(hasMorePages);
+        if (filters?.order) params.order = filters.order;
+        if (filters?.orderBy) params.orderBy = filters.orderBy;
+        if (filters?.userId && filters.userId !== "all") {
+          params.userId = filters.userId;
         }
+
+        const headers =
+          isAuthenticated && token
+            ? {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              }
+            : undefined;
+
+        const response = await api.get("/posts", {
+          headers,
+          params,
+        });
+
+        const apiPosts: ApiPost[] = response.data.data || [];
+        const newPhotos: Photo[] = mapPostsToPhotos(apiPosts);
+        const meta = response.data.meta || {};
+
+        if (page === 1) {
+          setPhotos(newPhotos);
+        } else {
+          setPhotos((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const uniqueNewPhotos = newPhotos.filter(
+              (p) => !existingIds.has(p.id),
+            );
+            return uniqueNewPhotos.length > 0
+              ? [...prev, ...uniqueNewPhotos]
+              : prev;
+          });
+        }
+
+        const hasMorePages = meta.currentPage < meta.lastPage;
+        setHasMore(hasMorePages);
       } catch (error) {
         console.error("Erro ao buscar fotos:", error);
         if (useSearchEndpoint && filters?.search) {

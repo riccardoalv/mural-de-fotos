@@ -10,10 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ImageIcon, X, Film } from "lucide-react";
+import { Upload, ImageIcon, X, GripVertical } from "lucide-react";
 import Image from "next/image";
 import api from "@/lib/api";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type MediaType = "image" | "video";
 
@@ -21,25 +20,42 @@ type MediaPreview = {
   id: string;
   file: File;
   preview: string;
-  title: string;
-  description: string;
-  isPublic: boolean;
   type: MediaType;
 };
 
 type MediaCardProps = {
   media: MediaPreview;
+  index: number;
   onRemove: (id: string) => void;
-  onChange: (
-    id: string,
-    field: keyof MediaPreview,
-    value: string | boolean,
-  ) => void;
+  onDragStart: (index: number) => void;
+  onDragEnter: (index: number) => void;
+  onDragEnd: () => void;
 };
 
-function MediaCard({ media, onRemove, onChange }: MediaCardProps) {
+function MediaCard({
+  media,
+  index,
+  onRemove,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
+}: MediaCardProps) {
   return (
-    <div className="border rounded-lg p-4 space-y-4">
+    <div
+      className="border rounded-lg p-4 space-y-4 bg-background cursor-move"
+      draggable
+      onDragStart={() => onDragStart(index)}
+      onDragEnter={() => onDragEnter(index)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => e.preventDefault()}
+    >
+      <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <GripVertical className="h-4 w-4" />
+          <span>Arraste para reordenar</span>
+        </div>
+      </div>
+
       <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
         {media.type === "image" ? (
           <Image
@@ -66,30 +82,6 @@ function MediaCard({ media, onRemove, onChange }: MediaCardProps) {
           <X className="h-4 w-4" />
         </Button>
       </div>
-
-      <Input
-        value={media.title}
-        onChange={(e) => onChange(media.id, "title", e.target.value)}
-        placeholder="Título"
-        required
-      />
-
-      <Textarea
-        value={media.description}
-        onChange={(e) => onChange(media.id, "description", e.target.value)}
-        placeholder="Descrição (opcional)"
-        rows={2}
-      />
-
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          checked={media.isPublic}
-          onCheckedChange={(checked) =>
-            onChange(media.id, "isPublic", checked === true)
-          }
-        />
-        <Label>Tornar pública</Label>
-      </div>
     </div>
   );
 }
@@ -100,11 +92,9 @@ type MediaGridProps = {
   emptyTitle: string;
   emptyDescription: string;
   onRemove: (id: string) => void;
-  onChange: (
-    id: string,
-    field: keyof MediaPreview,
-    value: string | boolean,
-  ) => void;
+  onDragStart: (index: number) => void;
+  onDragEnter: (index: number) => void;
+  onDragEnd: () => void;
 };
 
 function MediaGrid({
@@ -113,7 +103,9 @@ function MediaGrid({
   emptyTitle,
   emptyDescription,
   onRemove,
-  onChange,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
 }: MediaGridProps) {
   if (media.length === 0) {
     return (
@@ -129,12 +121,15 @@ function MediaGrid({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {media.map((item) => (
+      {media.map((item, index) => (
         <MediaCard
           key={item.id}
           media={item}
+          index={index}
           onRemove={onRemove}
-          onChange={onChange}
+          onDragStart={onDragStart}
+          onDragEnter={onDragEnter}
+          onDragEnd={onDragEnd}
         />
       ))}
     </div>
@@ -148,9 +143,16 @@ export default function UploadPage() {
 
   const [selectedMedia, setSelectedMedia] = useState<MediaPreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"images" | "videos">("images");
+
+  // Campos do POST (um único post)
+  const [caption, setCaption] = useState("");
+  const [isPostPublic, setIsPostPublic] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // refs para drag & drop
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/");
@@ -169,10 +171,6 @@ export default function UploadPage() {
 
     const filesArray = Array.from(e.target.files);
 
-    const defaultTitle = new Date().toLocaleDateString("pt-BR", {
-      dateStyle: "medium",
-    });
-
     const newMedia = filesArray
       .filter((file) => {
         const isImage = file.type.startsWith("image/");
@@ -185,13 +183,11 @@ export default function UploadPage() {
           id: Math.random().toString(36).slice(2),
           file,
           preview: URL.createObjectURL(file),
-          title: defaultTitle,
-          description: "",
-          isPublic: false,
           type: isVideo ? "video" : "image",
         };
       });
 
+    // a ordem que o usuário escolheu entra aqui
     setSelectedMedia((prev) => [...prev, ...newMedia]);
     e.target.value = "";
   };
@@ -204,16 +200,36 @@ export default function UploadPage() {
     });
   };
 
-  const handleUpdateMediaField = (
-    id: string,
-    field: keyof MediaPreview,
-    value: string | boolean,
-  ) => {
-    setSelectedMedia((prev) =>
-      prev.map((media) =>
-        media.id === id ? { ...media, [field]: value } : media,
-      ),
-    );
+  // Drag and drop handlers
+  const handleDragStart = (position: number) => {
+    dragItem.current = position;
+  };
+
+  const handleDragEnter = (position: number) => {
+    dragOverItem.current = position;
+  };
+
+  const handleDragEnd = () => {
+    if (
+      dragItem.current === null ||
+      dragOverItem.current === null ||
+      dragItem.current === dragOverItem.current
+    ) {
+      dragItem.current = null;
+      dragOverItem.current = null;
+      return;
+    }
+
+    setSelectedMedia((prev) => {
+      const updated = [...prev];
+      const item = updated[dragItem.current as number];
+      updated.splice(dragItem.current as number, 1);
+      updated.splice(dragOverItem.current as number, 0, item);
+      return updated;
+    });
+
+    dragItem.current = null;
+    dragOverItem.current = null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -224,22 +240,23 @@ export default function UploadPage() {
     const token = localStorage.getItem("token");
 
     try {
-      await Promise.all(
-        selectedMedia.map(async (media) => {
-          const formData = new FormData();
-          formData.append("caption", media.title);
-          formData.append("description", media.description);
-          formData.append("public", String(media.isPublic));
-          formData.append("image", media.file, media.file.name);
+      const formData = new FormData();
 
-          await api.post("/posts", formData, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data",
-            },
-          });
-        }),
-      );
+      // Campos do post (um único registro)
+      formData.append("caption", caption);
+      formData.append("public", String(isPostPublic));
+
+      // Array de mídias (ordem = ordem do array)
+      selectedMedia.forEach((media) => {
+        formData.append("media", media.file, media.file.name);
+      });
+
+      await api.post("/posts", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       router.push("/");
     } catch (error) {
@@ -249,33 +266,39 @@ export default function UploadPage() {
     }
   };
 
-  const filteredMedia =
-    activeTab === "images"
-      ? selectedMedia.filter((media) => media.type === "image")
-      : selectedMedia.filter((media) => media.type === "video");
-
   return (
     <>
       <Header />
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         <h1 className="text-2xl font-bold mb-6">Enviar Novas Mídias</h1>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as "images" | "videos")}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <TabsList>
-              <TabsTrigger value="images" className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Imagens
-              </TabsTrigger>
-              <TabsTrigger value="videos" className="flex items-center gap-2">
-                <Film className="h-4 w-4" />
-                Vídeos
-              </TabsTrigger>
-            </TabsList>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Campos do post */}
+          <div className="space-y-4 border rounded-lg p-4">
+            <div className="space-y-2">
+              <Label htmlFor="caption">Legenda do post</Label>
+              <Textarea
+                id="caption"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Escreva uma legenda para este post"
+                rows={2}
+                required
+              />
+            </div>
 
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="post-public"
+                checked={isPostPublic}
+                onCheckedChange={(checked) => setIsPostPublic(checked === true)}
+              />
+              <Label htmlFor="post-public">Post público</Label>
+            </div>
+          </div>
+
+          {/* Seletor de arquivos */}
+          <div className="flex justify-between items-center mb-4">
             <div>
               <Input
                 ref={fileInputRef}
@@ -297,42 +320,29 @@ export default function UploadPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <TabsContent value="images">
-              <MediaGrid
-                media={filteredMedia}
-                emptyIcon={<ImageIcon />}
-                emptyTitle="Nenhuma imagem selecionada"
-                emptyDescription="Selecione imagens usando o botão acima."
-                onRemove={handleRemoveMedia}
-                onChange={handleUpdateMediaField}
-              />
-            </TabsContent>
+          <MediaGrid
+            media={selectedMedia}
+            emptyIcon={<ImageIcon className="inline-block mr-1" />}
+            emptyTitle="Nenhuma mídia selecionada"
+            emptyDescription="Selecione imagens e vídeos usando o botão acima e arraste para reordenar."
+            onRemove={handleRemoveMedia}
+            onDragStart={handleDragStart}
+            onDragEnter={handleDragEnter}
+            onDragEnd={handleDragEnd}
+          />
 
-            <TabsContent value="videos">
-              <MediaGrid
-                media={filteredMedia}
-                emptyIcon={<Film />}
-                emptyTitle="Nenhum vídeo selecionado"
-                emptyDescription="Selecione vídeos usando o botão acima."
-                onRemove={handleRemoveMedia}
-                onChange={handleUpdateMediaField}
-              />
-            </TabsContent>
-
-            {selectedMedia.length > 0 && (
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isSubmitting || !selectedMedia.length}
-              >
-                {isSubmitting
-                  ? "Enviando..."
-                  : `Enviar ${selectedMedia.length} arquivo(s)`}
-              </Button>
-            )}
-          </form>
-        </Tabs>
+          {selectedMedia.length > 0 && (
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isSubmitting || !selectedMedia.length}
+            >
+              {isSubmitting
+                ? "Enviando..."
+                : `Enviar ${selectedMedia.length} arquivo(s) na ordem atual`}
+            </Button>
+          )}
+        </form>
       </main>
     </>
   );
