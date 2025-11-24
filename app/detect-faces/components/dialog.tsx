@@ -279,7 +279,7 @@ export function LabelClusterDialog({
       await api.post(
         `/labeling/label`,
         {
-          name: labelName,
+          ...(userIdToSend ? undefined : { name: labelName }),
           userId: userIdToSend,
         },
         {
