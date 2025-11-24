@@ -121,7 +121,6 @@ export default function DetectFacesPage() {
           params: {
             limit: PAGE_SIZE,
             page,
-            alreadyClassified: false,
           },
         });
 
