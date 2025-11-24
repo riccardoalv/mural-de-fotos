@@ -38,6 +38,7 @@ export type FilterOptions = {
   order: string;
   orderBy: string;
   userId?: string;
+  search?: string;
 };
 
 interface FiltersProps {

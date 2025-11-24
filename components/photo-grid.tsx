@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import api, { searchPosts } from "@/lib/api";
+import api from "@/lib/api";
 import { Photo, PhotoItem } from "@/components/photo-item";
 import { SkeletonLoader } from "@/components/skeleton-loader";
 import { useAuth } from "@/context/auth-context";
@@ -163,6 +163,9 @@ export default function PhotoGrid({
         if (filters?.orderBy) params.orderBy = filters.orderBy;
         if (filters?.userId && filters.userId !== "all") {
           params.userId = filters.userId;
+        }
+        if (filters?.search && filters.search.trim().length > 0) {
+          params.search = filters.search.trim();
         }
 
         const headers =

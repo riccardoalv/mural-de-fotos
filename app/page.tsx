@@ -175,7 +175,6 @@ export default function Home() {
           <Filters
             onFilterChange={handleFilterChange}
             initialFilters={filters}
-            searchQuery={debouncedSearch}
             isAuthenticated={isAuthenticated}
           />
         </div>
