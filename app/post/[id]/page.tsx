@@ -28,7 +28,6 @@ import { ptBR } from "date-fns/locale";
 import api from "@/lib/api";
 import { handleLike } from "@/lib/handleLike";
 import { handleAddComment } from "@/lib/handleAddComment";
-import { getImageUrl } from "@/lib/api";
 import Header from "@/components/header";
 import {
   AlertDialog,
@@ -91,10 +90,10 @@ export default function PostPage() {
         // Configurar headers com token se disponível
         const config = savedToken
           ? {
-            headers: {
-              Authorization: `Bearer ${savedToken}`,
-            },
-          }
+              headers: {
+                Authorization: `Bearer ${savedToken}`,
+              },
+            }
           : undefined;
 
         // Buscar dados completos da foto/vídeo
@@ -108,8 +107,7 @@ export default function PostPage() {
         setIsVideo(!!data.isVideo);
 
         try {
-          // Usar getImageUrl para ambos os tipos de mídia
-          const url = getImageUrl(id as string);
+          const url = data.imageUrl;
           setMediaUrl(url);
         } catch (error) {
           // Fallback to direct URL construction

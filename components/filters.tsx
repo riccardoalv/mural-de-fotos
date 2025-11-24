@@ -35,16 +35,14 @@ import {
 import api from "@/lib/api";
 
 export type FilterOptions = {
-  order: "asc" | "desc";
-  orderBy: "createdAt" | "likes" | "comments";
+  order: string;
+  orderBy: string;
   userId?: string;
-  search?: string;
 };
 
 interface FiltersProps {
   onFilterChange: (filters: FilterOptions) => void;
   initialFilters?: FilterOptions;
-  searchQuery?: string;
   isAuthenticated: boolean;
 }
 
@@ -57,7 +55,6 @@ type User = {
 export default function Filters({
   onFilterChange,
   initialFilters,
-  searchQuery,
   isAuthenticated,
 }: FiltersProps) {
   const [users, setUsers] = useState<User[]>([]);
@@ -65,40 +62,52 @@ export default function Filters({
     order: initialFilters?.order || "desc",
     orderBy: initialFilters?.orderBy || "createdAt",
     userId: initialFilters?.userId || undefined,
-    search: searchQuery,
   });
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    // Buscar usuários apenas se estiver autenticado
-    if (isAuthenticated) {
-      const fetchUsers = async () => {
-        try {
-          const token = localStorage.getItem("token");
-          const config = token
-            ? {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-            : undefined;
+  // --- Estados de busca e paginação ---
+  const [userPage, setUserPage] = useState(1);
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
-          const response = await api.get("/users", config);
-          setUsers(response.data.data || []);
-        } catch (error) {
-          console.error("Erro ao buscar usuários:", error);
-        }
-      };
+  const USERS_LIMIT = 20;
 
-      fetchUsers();
+  // --- Buscar usuários com paginação e busca ---
+  const fetchUsers = async (page = 1, reset = false) => {
+    if (!isAuthenticated) return;
+
+    try {
+      setIsLoadingUsers(true);
+
+      const token = localStorage.getItem("token");
+      const config = token
+        ? {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            params: { page, limit: USERS_LIMIT },
+          }
+        : {
+            params: { page, limit: USERS_LIMIT },
+          };
+
+      const response = await api.get("/users", config);
+      const data: User[] = response.data.data || [];
+
+      setUsers((prev) => (reset ? data : [...prev, ...data]));
+      setHasMoreUsers(data.length === USERS_LIMIT);
+      setUserPage(page);
+    } catch (error) {
+      console.error("Erro ao buscar usuários:", error);
+    } finally {
+      setIsLoadingUsers(false);
     }
+  };
+
+  // Carregar primeira página quando autenticado
+  useEffect(() => {
+    if (isAuthenticated) fetchUsers(1, true);
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (searchQuery !== undefined) {
-      setFilters((prev) => ({ ...prev, search: searchQuery }));
-    }
-  }, [searchQuery]);
 
   const handleFilterChange = (key: keyof FilterOptions, value: any) => {
     const newFilters = { ...filters, [key]: value };
@@ -111,7 +120,6 @@ export default function Filters({
       order: "desc",
       orderBy: "createdAt",
       userId: undefined,
-      search: searchQuery,
     };
     setFilters(defaultFilters);
     onFilterChange(defaultFilters);
@@ -130,13 +138,12 @@ export default function Filters({
     }
   };
 
-  const getOrderIcon = () => {
-    return filters.order === "desc" ? (
+  const getOrderIcon = () =>
+    filters.order === "desc" ? (
       <ChevronDown className="h-4 w-4 mr-2" />
     ) : (
       <ChevronUp className="h-4 w-4 mr-2" />
     );
-  };
 
   const getOrderByLabel = (value: string) => {
     switch (value) {
@@ -151,36 +158,13 @@ export default function Filters({
     }
   };
 
-  const getOrderLabel = (value: string, orderBy: string) => {
-    if (value === "desc") {
-      switch (orderBy) {
-        case "createdAt":
-          return "Mais recentes primeiro";
-        case "likes":
-          return "Mais curtidas primeiro";
-        case "comments":
-          return "Mais comentados primeiro";
-        default:
-          return "Maior para menor";
-      }
-    } else {
-      switch (orderBy) {
-        case "createdAt":
-          return "Mais antigos primeiro";
-        case "likes":
-          return "Menos curtidas primeiro";
-        case "comments":
-          return "Menos comentados primeiro";
-        default:
-          return "Menor para maior";
-      }
+  const handleLoadMoreUsers = () => {
+    if (!isLoadingUsers && hasMoreUsers) {
+      fetchUsers(userPage + 1, false);
     }
   };
 
-  // Se não estiver autenticado, não mostrar os filtros avançados
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
   return (
     <TooltipProvider>
@@ -219,11 +203,13 @@ export default function Filters({
 
           <CollapsibleContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg border">
+              {/* ORDENAR POR */}
               <div className="space-y-2">
                 <Label htmlFor="orderBy" className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
                   Ordenar por
                 </Label>
+
                 <Select
                   value={filters.orderBy}
                   onValueChange={(value) =>
@@ -234,13 +220,14 @@ export default function Filters({
                   }
                 >
                   <SelectTrigger id="orderBy" className="w-full">
-                    <SelectValue placeholder="Ordenar por">
+                    <SelectValue>
                       <div className="flex items-center">
                         {getOrderByIcon()}
                         {getOrderByLabel(filters.orderBy)}
                       </div>
                     </SelectValue>
                   </SelectTrigger>
+
                   <SelectContent>
                     <SelectItem value="createdAt">
                       <div className="flex items-center">
@@ -264,15 +251,13 @@ export default function Filters({
                 </Select>
               </div>
 
+              {/* DIREÇÃO */}
               <div className="space-y-2">
                 <Label htmlFor="order" className="flex items-center">
-                  {filters.order === "desc" ? (
-                    <ChevronDown className="h-4 w-4 mr-2" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4 mr-2" />
-                  )}
+                  {getOrderIcon()}
                   Direção
                 </Label>
+
                 <Select
                   value={filters.order}
                   onValueChange={(value) =>
@@ -280,43 +265,40 @@ export default function Filters({
                   }
                 >
                   <SelectTrigger id="order" className="w-full">
-                    <SelectValue placeholder="Direção">
+                    <SelectValue>
                       <div className="flex items-center">
                         {getOrderIcon()}
-                        {getOrderLabel(filters.order, filters.orderBy)}
+                        {filters.order === "desc"
+                          ? "Maior para menor"
+                          : "Menor para maior"}
                       </div>
                     </SelectValue>
                   </SelectTrigger>
+
                   <SelectContent>
                     <SelectItem value="desc">
                       <div className="flex items-center">
                         <ChevronDown className="h-4 w-4 mr-2" />
-                        {filters.orderBy === "createdAt"
-                          ? "Mais recentes primeiro"
-                          : filters.orderBy === "likes"
-                            ? "Mais curtidas primeiro"
-                            : "Mais comentados primeiro"}
+                        Maior para menor
                       </div>
                     </SelectItem>
                     <SelectItem value="asc">
                       <div className="flex items-center">
                         <ChevronUp className="h-4 w-4 mr-2" />
-                        {filters.orderBy === "createdAt"
-                          ? "Mais antigos primeiro"
-                          : filters.orderBy === "likes"
-                            ? "Menos curtidas primeiro"
-                            : "Menos comentados primeiro"}
+                        Menor para maior
                       </div>
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* FILTRAR POR USUÁRIO */}
               <div className="space-y-2">
                 <Label htmlFor="userId" className="flex items-center">
                   <Users className="h-4 w-4 mr-2" />
                   Filtrar por usuário
                 </Label>
+
                 <Select
                   value={filters.userId || "all"}
                   onValueChange={(value) =>
@@ -327,16 +309,17 @@ export default function Filters({
                   }
                 >
                   <SelectTrigger id="userId" className="w-full">
-                    <SelectValue placeholder="Todos os usuários">
+                    <SelectValue>
                       <div className="flex items-center">
                         <Users className="h-4 w-4 mr-2" />
                         {filters.userId
                           ? users.find((u) => u.id === filters.userId)?.name ||
-                          "Usuário selecionado"
+                            "Usuário"
                           : "Todos os usuários"}
                       </div>
                     </SelectValue>
                   </SelectTrigger>
+
                   <SelectContent>
                     <SelectItem value="all">
                       <div className="flex items-center">
@@ -344,6 +327,7 @@ export default function Filters({
                         Todos os usuários
                       </div>
                     </SelectItem>
+
                     {users.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         <div className="flex items-center">
@@ -352,6 +336,24 @@ export default function Filters({
                         </div>
                       </SelectItem>
                     ))}
+
+                    {/* PAGINAÇÃO */}
+                    {hasMoreUsers && (
+                      <div className="p-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={handleLoadMoreUsers}
+                          disabled={isLoadingUsers}
+                        >
+                          {isLoadingUsers
+                            ? "Carregando..."
+                            : "Carregar mais usuários"}
+                        </Button>
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
