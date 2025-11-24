@@ -55,7 +55,26 @@ export default function AboutPage() {
           </div>
         </div>
 
-        <div className="mt-10 space-y-4">
+        {/* Section de Classificação da IA */}
+        <div className="mt-10 pt-6 border-t pb-6">
+          <div className="text-center space-y-4">
+            <h2 className="text-xl font-semibold">Classificação de Rostos</h2>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              Ajude a treinar e melhorar o classificador de rostos do Mural
+              UNIR. Basta acessar a ferramenta e identificar quem é quem nas
+              fotos.
+            </p>
+
+            <Button asChild className="mx-auto">
+              <Link href="/detect-faces">Ajude a classificar minha IA</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* divisor antes do código fonte */}
+        <div className="border-t mt-10 pt-6"></div>
+
+        <div className="space-y-4">
           <h2 className="text-xl font-semibold">Código Fonte</h2>
           <p>
             Este projeto é open source e está disponível no GitHub. Sinta-se à
